@@ -68,8 +68,12 @@ def rgb_signature(image: Path | str) -> bytes:
     return r.stdout
 
 
-def sig_diff_ratio(a: bytes, b: bytes, channel_thr: int = 48) -> float:
-    """变化像素占比:单像素任一通道差 > channel_thr 记为变化。初始值 48。"""
+def sig_diff_ratio(a: bytes, b: bytes, channel_thr: int = 24) -> float:
+    """变化像素占比:单像素任一通道差 > channel_thr 记为变化。
+
+    标定值 24(2026-07-11 于验收视频 #13 标定):深底讲义页间共享大面积背景,
+    初始值 48 下不同页的变化占比仅 0.03–0.08(全部误判重);24 下真翻页 0.12–0.43、
+    同页递进 build ≤0.04,与判重阈值 DUP_RATIO=0.10 分离良好。"""
     assert len(a) == len(b) == 768, "签名必须是 16×16×3 字节"
     changed = sum(
         1
