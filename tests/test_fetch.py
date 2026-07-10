@@ -53,3 +53,12 @@ def test_pick_subtitle_track_priority():
     # 无手动/ai,自动字幕仅取视频语言
     assert fetch.pick_subtitle_track({}, {"en": [], "zh-Hans": []}, "en") == ("auto", "en")
     assert fetch.pick_subtitle_track({}, {"fr": []}, "en") is None
+
+
+def test_pick_subtitle_exact_match_beats_prefix_order():
+    subs = {"zh-Hant": [], "zh-Hans": []}          # 故意把 Hant 放前面
+    assert fetch.pick_subtitle_track(subs, {}, "zh-Hans") == ("manual", "zh-Hans")
+
+
+def test_pick_subtitle_auto_never_selects_danmaku():
+    assert fetch.pick_subtitle_track({}, {"danmaku": []}, "da") is None

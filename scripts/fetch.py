@@ -65,10 +65,17 @@ def parse_metadata(info: dict) -> tuple[dict, dict]:
 
 def pick_subtitle_track(subtitles: dict, automatic: dict, video_lang: str | None):
     subs, autos = subtitles or {}, automatic or {}
-    lang2 = (video_lang or "")[:2].lower()
+    lang = (video_lang or "").lower()
+    lang2 = lang[:2]
 
     def by_lang(keys):
-        return next((k for k in keys if lang2 and k.lower().startswith(lang2)), None)
+        keys = [k for k in keys if k != "danmaku"]   # danmaku 永不入选,任何路径
+        if not lang:
+            return None
+        exact = next((k for k in keys if k.lower() == lang), None)
+        if exact:
+            return exact                              # 精确匹配优先于前缀匹配
+        return next((k for k in keys if k.lower().startswith(lang2)), None)
 
     manual = [k for k in subs if k != "danmaku" and not k.startswith("ai-")]
     if manual:
