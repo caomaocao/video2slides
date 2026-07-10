@@ -1,0 +1,83 @@
+---
+name: video2slides
+description: Turn a YouTube/Bilibili video into a frontend-slides HTML deck. Slides carry keyframes with timestamp badges that deep-link back to the source video. Requires ffmpeg + yt-dlp; subtitled videos need no API key.
+---
+
+# video2slides(垂直切片版)
+
+把在线视频转为「视频的可导航索引」:transcript → 大纲(带证据引用)→ 定向选帧 → frontend-slides HTML。
+本版覆盖:带字幕的 slide-driven 视频(YouTube / B 站单 P)。分析全程零打断,唯一交互点在渲染前。
+
+> **运行方式**:以下命令均写作 `python scripts/xxx.py`(面向发布后的最终形态)。在本 repo 内开发/验收时,脚本跑在 `uv` 管理的 venv 里,请一律换成 `uv run python scripts/xxx.py`。
+> **路径约定**:`<OUT>`/`<W>` 全程使用绝对路径。脚本把 `--work` 传入值原样拼进 `proxy_path`/`final_path`/`candidates.json` 等制品;`storyboard.py validate` 用 `Path(proxy_path).exists()` 校验存在性——若中途换了相对路径或换了 cwd 调用,校验会因路径不匹配而误报失败。
+
+## 预算(硬约束)
+
+- 图片 Read 总数 ≤ 15 次/视频(探针 sheet ≤2 + 各章候选 sheet ≤2/章 + 细看单帧)
+- 引用校验重生成 ≤ 2 轮,仍失败的节点降级纯文字 slide
+
+## 流程
+
+### 0. 预检
+`python scripts/setup.py`(不加 `--check`——该 flag 会静默掉所有提示文本,只留 exit code,缺二进制时看不到装什么;不加 flag 才会打印缺失清单与 `macOS: brew install ffmpeg yt-dlp` 提示)。
+exit 0 → 预检通过,继续;exit 2 → 按 stdout 提示装好 `ffmpeg`/`ffprobe`/`yt-dlp` 后重试;exit 4 → 仅缺 `tesseract`,提示信息可读但不阻塞,直接继续(文字密度打分自动降级为边缘密度代理)。
+
+### 1. 取流
+`python scripts/fetch.py --url <URL> --work <OUT>/.work`(B 站加 `--cookies-from-browser chrome`)。
+exit 3 = 无字幕轨:告知用户该视频需 ASR(本版未含),停止。
+输出目录 `<OUT>` 默认 `~/Desktop/video2slides/<title>_<YYYYMMDD>/`。
+
+### 2. 转写与信号
+`python scripts/transcribe.py --work <W>` → `python scripts/signals.py --work <W>`。
+- transcribe.py:exit 1 = 字幕文件解析出 0 段(格式异常/内容为空),停止并告知用户;exit 3 = `meta.json` 无 `subtitle` 键(正常流程下 fetch.py exit 0 已保证该键存在,只在异常状态下触发,视为需回到步骤 1 重跑)。
+- signals.py:exit 1 = scene-score 遍历失败(如单帧/静态视频)——spec §11 描述的降级路径(uniform 抽帧兜底)本切片未实现,遇到即直接停止并告知用户。
+记下 stdout 的 `curve_stats`(含 `plateau_ratio`、`spikes_per_min`,下一步要用)。
+
+### 3. 轴 A/B 分类
+`python scripts/frames.py --probe --work <W>`,Read 探针 sheet(≤2 张):
+- 长平台 + 尖峰(plateau_ratio>0.8 且 spikes_per_min 约 0.5–6)且画面为版式文字 → slide-driven
+- 其他形态:本版仅支持 slide-driven,如判非 slide-driven,告知用户后按 slide-driven 保守处理,但**不启用页边界 snap**(spec §11)
+轴 B:读 transcript 前 60 段 + `.work/meta.json`(标题)+ `.work/ytdlp_info.json`(简介/description 字段,若存在——fetch.py 落盘的 `meta.json` 只保留 title/duration/language/uploader,不含简介,原始简介仍在未裁剪的 `ytdlp_info.json` 里)+ `.work/priors.json`(chapters),从 {课程/教程, 演讲/分享, 访谈/播客, 评测/对比, 资讯/解读, 会议记录, vlog/生活, 纪录片} 选一。
+
+### 4. 大纲生成(核心语义步骤)
+读 `.work/transcript.json` + `.work/priors.json` + `.work/page_boundaries.json`,生成层级大纲并**直接写 `.work/storyboard.json`**(schema 见 spec §6)。规则:
+- chapters 作 level-1 骨架(无则自行分层);heatmap 高值时段值得展开为独立要点
+- **每个节点的 evidence 必须含 `{segment_id, quote}`,quote 是该字幕段内一字不差的原文短语**——禁止改写
+- slide-driven:节点边界优先落在页边界上(±3s 内 snap 到最近页边界,超出保留字幕时间)
+- 大纲语言跟随视频语言;`video` 块填 meta 内容(`video.priors.page_boundaries` 取 `.work/page_boundaries.json` 的真实内容——`.work/priors.json` 里同名字段是 fetch.py 阶段写入的占位空数组,永远不会被后续步骤回填,不要从那里取),`visual_form` 填单段,`media` 先留空数组
+- 叶子节点数参考:每 10 分钟 6–10 个
+写完跑 `python scripts/storyboard.py validate --work <W>`;exit 5 → 按 stdout 失败节点重写其 evidence(≤2 轮,仍失败改纯文字节点:删 media、保留大纲文字)。
+
+### 5. 选帧
+`python scripts/frames.py --candidates --work <W>`,然后 Read 各章 sheet(每张有同名 `.map.json` 映射 cell→候选;字段:`chapter`/`truncated`/`dropped_node_ids`/`cells[{cell,node_id,t,file}]`):
+- 为每个叶子选 1–2 帧(选版式完整、文字清晰、无转场残影的),需要细看时才 Read 单帧原图
+- 把选中项写回 storyboard 各节点 `media`:`{"type":"frame","proxy_path":<map 的 file>,"final_path":null,"finalized":false,"t":<map 的 t>,"reason":<候选 reason>,"score":<候选 score>}`——`reason`/`score` 不在 map.json 里,需按 `file` 路径去同一份 `.work/candidates.json`(本步开头已生成)里查对应候选取值
+- 若某张 sheet 的 `dropped_node_ids` 非空(该章候选量超过 18 帧/2 张 sheet 的预算上限,轮转配额未覆盖到的节点整个被挤出 sheet),这些节点不会出现在任何 sheet 里,需直接读 `.work/candidates.json` 按 `node_id` 过滤出它们的候选(未剪枝的原始候选,含 `score`/`reason`/`file`),挑分数最高的 1 张,不必额外 Read 图——`score` 已经是 ffmpeg 边缘/文字密度 + 峰值合成的排序依据
+- 跑 `python scripts/storyboard.py dedup --work <W>`(跨要点去重,自动替换/降级)
+
+### 6. 粒度询问(唯一交互点,合并 frontend-slides Phase 1)
+用 AskUserQuestion 问一次:
+- 「Length」短 5–10 / 中 10–20 / 长 20+(默认中)
+- 顺带允许覆盖输出语言(默认跟随视频)
+Purpose 由轴 B 推断、Content 恒为 ready、Density 默认 high-density/reading-first,不问。
+
+### 7. 渲染前置
+- 深度:短→level 1;中→level 2;长→level 3(不足则全展开)
+- 浅于叶子的展开:`python scripts/storyboard.py aggregate --work <W> --depth <N>` 取各页 media(输出到 stdout 的 JSON,不会自动写回 storyboard;下一步的 `on_page` 仍需手动编辑)
+- 给本次上页的每条 media 标 `on_page: true`(直接编辑 storyboard.json)
+- `python scripts/frames.py --finalize --work <W> [--cookies-from-browser chrome]`
+
+### 8. 渲染(调 frontend-slides skill)
+读 frontend-slides 的 SKILL.md 并遵循其全部不变量(1920×1080 fixed stage、零依赖)。跳过其 Phase 1/2 提问:
+- 风格 = 轴 B 自动映射(均为 STYLE_PRESETS.md 内已验证存在的预设名):课程/教程→Swiss Modern;演讲/分享→Bold Signal;访谈/播客→Paper & Ink;评测/对比→Electric Studio;资讯/解读→Notebook Tabs;会议记录→Paper & Ink;vlog/生活→Split Pastel;纪录片→Vintage Editorial
+- 版式需求:每页含标题 + storyboard 该节点 media(用 `final_path`)+ **时间戳角标**(mm:ss,`<a href>` 用 `meta.source.badge_url_template` 填 t 的整数秒)+ summary 要点文字;`quality_limited` 的帧右下角标「代理画质」
+- `final_path` 的两种取值,HTML 里引用方式不同:
+  - 正常定稿:`frames.py --finalize` 写到 `<OUT>/assets/final_<node_id>_<t:.1f>.jpg`(如 `final_2.1_431.2.jpg`),HTML 用相对 `index.html` 的 `assets/<文件名>` 引用即可
+  - 降级(`quality_limited: true`,高清直链两次都取不到):`final_path` 原样等于代理帧 `proxy_path`,即 `<OUT>/.work/frames_proxy/f_xxxxx.jpg`——**不在** `assets/` 下。渲染前把这些文件也拷贝进 `assets/`(保持自包含,便于之后整目录分享/部署),再按拷贝后的相对路径引用,不要直接从 `.work/` 里引
+- 产出 `<OUT>/index.html`
+交付时告知所用风格;用户可要求换风格/换粒度重渲染——只重复 6–8 步,零重跑分析。
+
+### 9. QA(交付前自检)
+- 每页有标题、无 placeholder 文案;所有 `assets/` 引用文件存在
+- 抽 3 个时间戳角标,核对 URL 格式(YouTube `&t=<n>s` / B 站 `?p=<n>&t=<n>`)且秒数在该节点时间窗内
+- 抽 2 页核对帧与要点相关性,不符则回 sheet 换帧重渲染该页
