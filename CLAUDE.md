@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repo is the not-yet-implemented codebase for **video2slides**: a planned Claude Code skill that turns a video (YouTube / Bilibili / local file) into a `frontend-slides`-style HTML deck, with slides carrying embedded keyframes/clips that jump back to the source video's timestamp.
 
-The full design is written up in `docs/video2slides-spec-v0.4.md` (Chinese; v0.4 is the reviewed, decision-final version — v0.3 is kept as a historical snapshot). **Read it before making architectural decisions** — it is the source of truth; the summary below exists so you don't have to re-read all ~400 lines just to get oriented. Right now the repo itself is just the `uv`-generated scaffold (`main.py` is a placeholder) — none of the pipeline described below has been implemented yet. Implementation proceeds as a vertical slice: subtitled slide-driven online video → outline → frames → HTML end-to-end first (spec §13).
+The full design is written up in `docs/video2slides-spec-v0.4.md` (Chinese; v0.4 is the reviewed, decision-final version — v0.3 is kept as a historical snapshot). **Read it before making architectural decisions** — it is the source of truth; the summary below exists so you don't have to re-read all ~400 lines just to get oriented. Implementation is underway in `scripts/` + `tests/`, proceeding as a vertical slice: subtitled slide-driven online video → outline → frames → HTML end-to-end first (spec §13).
 
 > 语言约定：本仓库的**代码注释、commit message、文档（含 `docs/` 与新建 `.md`）一律用中文**。本文件除顶部固定前缀外，正文也用中文。
 
@@ -14,7 +14,6 @@ The full design is written up in `docs/video2slides-spec-v0.4.md` (Chinese; v0.4
 
 - Runtime: Python 3.12, pinned via pyenv (`.python-version`), managed with `uv` (`pyproject.toml` / `uv.lock`).
 - `uv sync` — install/sync the venv from the lockfile
-- `uv run python main.py` — run the current entry point
 - `uv add <pkg>` / `uv remove <pkg>` — manage dependencies (see Dependency policy below before adding anything to the runtime path)
 - `uv run pytest` — run tests (pytest is a dev-only dependency; runtime stays stdlib-only)
 
