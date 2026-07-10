@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import bisect
+import re as _re
+import shutil as _shutil
+import subprocess as _sp
 from pathlib import Path
 
-from common import rgb_signature, run, save_json, sig_diff_ratio, wp
+from common import emit, is_fresh, load_json, rgb_signature, run, save_json, sig_diff_ratio, wp
 
 # 初始值(spec §14)
 PEAK_OFFSET = 0.7        # 避糊:峰后偏移取稳定帧
@@ -99,25 +102,37 @@ def extract_candidates(work: Path, cands: list[dict], rows: list[dict]) -> list[
     frames_dir.mkdir(parents=True, exist_ok=True)
     for c in cands:
         c["n"] = t_to_frame(c["t"], rows)
-    # 同帧号合并(不同要点命中同一帧:保留首个,后续在跨要点去重阶段处理)
-    by_n: dict[int, dict] = {}
+    # 同帧号分组(不同要点命中同一帧):全部保留,共享同一抽帧文件——不可用 setdefault 只留首个,
+    # 否则某要点的唯一候选与另一要点撞帧号时会被静默丢弃,导致该要点在 candidates.json 里清零、
+    # 下游不可恢复(Task 8 review 发现的问题)。
+    by_n: dict[int, list] = {}
     for c in sorted(cands, key=lambda c: c["n"]):
-        by_n.setdefault(c["n"], c)
-    ordered = list(by_n.values())
+        by_n.setdefault(c["n"], []).append(c)
+    ns = sorted(by_n)
 
     sel = work / "select.txt"
-    sel.write_text(build_select_expr([c["n"] for c in ordered]), encoding="utf-8")
+    sel.write_text(build_select_expr(ns), encoding="utf-8")
     run(["ffmpeg", "-y", "-v", "error", "-i", wp(work, "proxy"),
          "-filter_script:v", sel, "-fps_mode", "passthrough",
          "-q:v", "2", frames_dir / "f_%05d.jpg"], timeout=1800)
-    for i, c in enumerate(ordered, start=1):   # 输出序 = 帧号升序
-        c["file"] = str(frames_dir / f"f_{i:05d}.jpg")
+    ordered = []
+    for i, n in enumerate(ns, start=1):        # 输出序 = 帧号升序
+        f = str(frames_dir / f"f_{i:05d}.jpg")
+        for c in by_n[n]:
+            c["file"] = f
+            ordered.append(c)
     save_json(wp(work, "candidates"), ordered)
     return ordered
 
 
 def dedup_candidates(cands: list[dict]) -> list[dict]:
-    """时间序遍历,对比最近 4 张保留帧签名,sig_diff_ratio < DUP_RATIO 判重标 dup(不删,剪枝阶段处理)。"""
+    """时间序遍历,对比最近 4 张保留帧签名,sig_diff_ratio < DUP_RATIO 判重标 dup(不删,剪枝阶段处理)。
+
+    注:extract_candidates 修复同帧号合并后,不同要点撞同一帧号时会产出连续的同文件候选——
+    这里签名相同(diff ratio=0 < DUP_RATIO),后一条必判 dup,这是预期行为:谁真正保留该帧由
+    Task 10 的跨要点去重仲裁;若某要点的候选全被判 dup,prune_top3 的兜底逻辑会为该要点保留
+    分数最高的 1 张,不会导致该要点彻底没有候选。
+    """
     kept_sigs: list[bytes] = []
     for c in cands:                             # 已按时间(帧号)序
         sig = rgb_signature(c["file"])
@@ -126,3 +141,157 @@ def dedup_candidates(cands: list[dict]) -> list[dict]:
         if not is_dup:
             kept_sigs.append(sig)               # 滑窗只滚动保留帧(spec §8.1:抑制 A-B-A)
     return cands
+
+
+_YAVG = _re.compile(r"lavfi\.signalstats\.YAVG=([\d.]+)")
+
+
+def edge_density(image: Path | str) -> float:
+    """边缘密度代理(0–1):ffmpeg edgedetect 后取整帧 YAVG 均值 /255(spec §8.1,tesseract 缺失时的降级信号)。"""
+    r = _sp.run(["ffmpeg", "-v", "error", "-i", str(image),
+                 "-vf", "edgedetect,signalstats,metadata=print:file=-", "-f", "null", "-"],
+                capture_output=True, text=True)
+    m = _YAVG.search(r.stdout or "")
+    return float(m.group(1)) / 255 if m else 0.0
+
+
+def text_density(image: Path | str) -> float | None:
+    """文本密度(0–1):tesseract 存在时按 conf>60 的词数/40 封顶;tesseract 缺失时返回 None,
+    由 apply_scores 切到 0.6*edge+0.4*peak 的降级公式(spec §8.1)。"""
+    if not _shutil.which("tesseract"):
+        return None
+    r = _sp.run(["tesseract", str(image), "stdout", "--psm", "6", "-l", "chi_sim+eng", "tsv"],
+                capture_output=True, text=True)
+    words = sum(1 for line in r.stdout.splitlines()[1:]
+                if (c := line.split("\t")) and len(c) >= 12 and c[10].replace(".", "").isdigit()
+                and float(c[10]) > 60 and c[11].strip())
+    return min(words / 40, 1.0)
+
+
+def apply_scores(cands: list[dict]) -> list[dict]:
+    """由已测量的 _edge/_text/peak_score 合成最终 score(测量与合成拆开便于纯函数单测):
+    有文本密度时 0.5*text+0.3*edge+0.2*peak,缺失时降级 0.6*edge+0.4*peak;dup 帧一律 score=0。"""
+    for c in cands:
+        if c.get("dup"):
+            c["score"] = 0.0
+            continue
+        edge, text, peak = c["_edge"], c["_text"], c["peak_score"]
+        c["score"] = (0.5 * text + 0.3 * edge + 0.2 * peak) if text is not None \
+            else (0.6 * edge + 0.4 * peak)
+    return cands
+
+
+def measure(cands: list[dict]) -> list[dict]:
+    """对每个候选跑 edge_density/text_density(测量副作用),再调用 apply_scores 合成分数。"""
+    for c in cands:
+        c["_edge"] = edge_density(c["file"])
+        c["_text"] = text_density(c["file"])
+    return apply_scores(cands)
+
+
+def prune_top3(cands: list[dict]) -> dict:
+    """按 node_id 分组,非 dup 中取分数最高的 TOP_K;若某要点全 dup,兜底保留原始质量最高的 1 张
+    (spec §8.3:避免要点彻底没有候选帧)。"""
+    by_node: dict[str, list] = {}
+    for c in cands:
+        by_node.setdefault(c["node_id"], []).append(c)
+    sel = {}
+    for nid, cs in by_node.items():
+        good = sorted((c for c in cs if not c.get("dup")), key=lambda c: -c["score"])[:TOP_K]
+        if not good:                             # 全 dup 兜底:保原始质量最高 1 张
+            good = [max(cs, key=lambda c: c.get("_raw", c.get("_edge", 0)))]
+        sel[nid] = good
+    return sel
+
+
+def make_sheets(work: Path, selected: dict, chapters: list[dict]) -> list[dict]:
+    """按章分组(无 chapters 视为单章),组内帧按时间序 scale=640:360 后 tile=3x3 拼图,
+    每章预算 ≤2 张(18 帧);超出截断并在对应 map 里记 truncated=true(spec §8.3)。"""
+    sheets_dir = wp(work, "sheets_dir")
+    sheets_dir.mkdir(parents=True, exist_ok=True)
+    flat = sorted((c for cs in selected.values() for c in cs), key=lambda c: c["t"])
+    groups: list[list[dict]] = []
+    if chapters:
+        for ch in chapters:
+            g = [c for c in flat if ch["t_start"] <= c["t"] < ch["t_end"]]
+            if g:
+                groups.append(g)
+    else:
+        groups = [flat]
+    out = []
+    for gi, g in enumerate(groups):
+        capped, truncated = g[:18], len(g) > 18          # 每章 ≤2 张 3x3(预算,spec §8.3)
+        for si in range(0, len(capped), 9):
+            batch = capped[si:si + 9]
+            tmp = sheets_dir / f"tmp_ch{gi}_{si // 9}"
+            tmp.mkdir(exist_ok=True)
+            for bi, c in enumerate(batch):
+                _shutil.copy(c["file"], tmp / f"img_{bi:03d}.jpg")
+            sheet = sheets_dir / f"ch{gi}_{si // 9}.jpg"
+            run(["ffmpeg", "-y", "-v", "error", "-framerate", "1",
+                 "-i", tmp / "img_%03d.jpg",
+                 "-vf", "scale=640:360,tile=3x3", "-frames:v", "1", sheet])
+            _shutil.rmtree(tmp)
+            mp = {"truncated": truncated,
+                  "cells": [{"cell": bi, "node_id": c["node_id"], "t": c["t"], "file": c["file"]}
+                            for bi, c in enumerate(batch)]}
+            save_json(sheet.with_suffix(".map.json"), mp)
+            out.append({"sheet": str(sheet), "map": mp})
+    return out
+
+
+def run_cli(argv=None) -> int:
+    """CLI:--probe 全片均匀 15 帧供轴 A 视觉形态仲裁;--candidates 走完整对齐/规划/抽取/去重/
+    打分/剪枝/拼图链路并回填 candidates.json;--finalize 留给 Task 11 实现(spec §8)。"""
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--work", required=True)
+    mode = ap.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--probe", action="store_true")
+    mode.add_argument("--candidates", action="store_true")
+    mode.add_argument("--finalize", action="store_true")   # Task 11 实现
+    ap.add_argument("--force", action="store_true")
+    args = ap.parse_args(argv)
+    work = Path(args.work)
+    rows = load_json(wp(work, "scene_scores"))
+    duration = rows[-1]["t"] if rows else 0
+
+    if args.probe:
+        ts = [duration * (i + 0.5) / 15 for i in range(15)]
+        cands = [{"node_id": f"probe_{i}", "t": t, "reason": "probe", "peak_score": 0.0}
+                 for i, t in enumerate(ts)]
+        ordered = extract_candidates(work, cands, rows)
+        sheets = make_sheets(work, {"probe": ordered}, chapters=[])
+        emit(*[f"probe sheet: {s['sheet']}" for s in sheets],
+             next_hint="Claude Read 探针 sheet 确认 visual_form(spec §5.1)")
+        return 0
+
+    if args.candidates:
+        sb = load_json(wp(work, "storyboard"))
+        bounds = load_json(wp(work, "page_boundaries"))
+        chapters = load_json(wp(work, "priors"))["chapters"]
+        leaves = []
+
+        def walk(nodes):
+            for nd in nodes:
+                if nd.get("children"):
+                    walk(nd["children"])
+                else:
+                    leaves.append({"id": nd["id"],
+                                   "win": align_window(nd["t_start"], nd["t_end"], bounds, duration)})
+        walk(sb["outline"])
+        cands = [c for lf in leaves for c in plan_candidates(lf, bounds, duration)]
+        ordered = dedup_candidates(extract_candidates(work, cands, rows))
+        selected = prune_top3(measure(ordered))
+        sheets = make_sheets(work, selected, chapters)
+        save_json(wp(work, "candidates"), ordered)
+        emit(f"候选 {len(ordered)} 帧,叶子 {len(leaves)} 个",
+             *[f"sheet: {s['sheet']}" for s in sheets],
+             next_hint="Claude Read sheets 终选各要点用帧并回填 storyboard.media(spec §8.3)")
+        return 0
+    return 2
+
+
+if __name__ == "__main__":
+    import sys as _sys
+    _sys.exit(run_cli())

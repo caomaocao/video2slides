@@ -84,3 +84,64 @@ def test_extract_and_dedup_on_synthetic(tmp_path):
     assert all(Path(c["file"]).exists() for c in out)
     d = frames.dedup_candidates(out)
     assert [c.get("dup", False) for c in d] == [False, True, False]
+
+
+def test_extract_candidates_keeps_all_same_frame_collisions(tmp_path):
+    """两个不同节点的候选命中同一帧号:两条都保留(不因 by_n 合并丢弃),且共享同一抽帧文件
+    (Task 8 review 遗留问题:同帧号候选被 setdefault 静默丢弃,导致某要点候选清零、下游不可恢复)。"""
+    import subprocess
+    import common
+    work = tmp_path / ".work"; work.mkdir()
+    proxy = common.wp(work, "proxy")
+    subprocess.run(
+        ["ffmpeg", "-v", "error",
+         "-f", "lavfi", "-i", "color=red:s=320x180:r=10:d=2",
+         "-y", str(proxy)],
+        check=True)
+    rows = [{"n": i, "t": i / 10, "score": 0.0} for i in range(20)]
+    cands = [
+        {"node_id": "1", "t": 1.0, "reason": "scene-peak", "peak_score": 0.4},
+        {"node_id": "2", "t": 1.0, "reason": "scene-peak", "peak_score": 0.4},   # 与节点1同帧号
+    ]
+    out = frames.extract_candidates(work, cands, rows)
+    assert len(out) == 2
+    assert {c["node_id"] for c in out} == {"1", "2"}
+    assert out[0]["file"] == out[1]["file"]
+    assert Path(out[0]["file"]).exists()
+
+
+def test_score_formula_with_and_without_text():
+    cands = [{"node_id": "1", "dup": False, "peak_score": 0.5, "_edge": 0.4, "_text": 0.8},
+             {"node_id": "1", "dup": False, "peak_score": 0.5, "_edge": 0.4, "_text": None},
+             {"node_id": "1", "dup": True, "peak_score": 0.9, "_edge": 0.9, "_text": 0.9}]
+    out = frames.apply_scores(cands)
+    assert out[0]["score"] == pytest.approx(0.5 * 0.8 + 0.3 * 0.4 + 0.2 * 0.5)
+    assert out[1]["score"] == pytest.approx(0.6 * 0.4 + 0.4 * 0.5)
+    assert out[2]["score"] == 0.0
+
+
+def test_prune_top3_keeps_best_dup_as_fallback():
+    cands = [{"node_id": "1", "dup": True, "score": 0.0, "_raw": 0.9},
+             {"node_id": "1", "dup": True, "score": 0.0, "_raw": 0.3}]
+    sel = frames.prune_top3(cands)
+    assert len(sel["1"]) == 1 and sel["1"][0]["_raw"] == 0.9
+
+
+def test_make_sheets_caps_two_per_chapter(tmp_path):
+    import subprocess
+    import common
+    work = tmp_path / ".work"
+    fdir = common.wp(work, "frames_dir"); fdir.mkdir(parents=True)
+    files = []
+    for i in range(20):                                   # 20 帧 > 2 张 3x3 sheet 容量
+        f = fdir / f"f_{i:05d}.jpg"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi",
+                        "-i", f"color=gray:s=320x180:d=0.1", "-frames:v", "1", "-y", str(f)],
+                       check=True)
+        files.append(f)
+    selected = {"1": [{"node_id": "1", "t": float(i), "file": str(f), "score": 0.5}
+                      for i, f in enumerate(files)]}
+    sheets = frames.make_sheets(work, selected, chapters=[])
+    assert len(sheets) == 2                               # 每章 ≤2 张(预算)
+    assert sheets[0]["map"]["truncated"] is True
+    assert Path(sheets[0]["sheet"]).exists()
