@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import bisect
-from pathlib import Path
 
 # 初始值(spec §14)
 PEAK_OFFSET = 0.7        # 避糊:峰后偏移取稳定帧
@@ -12,9 +11,10 @@ DUP_RATIO = 0.10         # 判重:变化像素占比阈值
 TOP_K = 3                # 剪枝每要点 top-3
 
 
-def align_window(t_start: float, t_end: float, boundaries: list[dict], duration: float):
+def align_window(t_start: float, t_end: float, boundaries: list[dict],
+                 duration: float) -> tuple[float, float]:
     """
-    对齐窗口:slide-driven 模式下前扩至上一页边界。
+    对齐窗口:slide-driven 模式下前扩至上一页边界(只前扩、不后缩)。
 
     args:
         t_start: 窗口起点时间戳
@@ -28,7 +28,8 @@ def align_window(t_start: float, t_end: float, boundaries: list[dict], duration:
     prev = [b["t"] for b in boundaries if b["t"] <= t_start + 0.5]
     t0 = t_start
     if prev and t_start - prev[-1] <= MAX_BACK_EXPAND:
-        t0 = prev[-1]                      # slide-driven:讲者先翻页再开讲(spec §8.1 步骤0)
+        # slide-driven:讲者先翻页再开讲(spec §8.1 步骤0)
+        t0 = min(prev[-1], t_start)   # 只前扩不后缩:抖动边界落在 t_start 之后时保持原起点
     return (max(0.0, t0), min(t_end, duration))
 
 
@@ -36,6 +37,8 @@ def plan_candidates(leaf: dict, boundaries: list[dict], duration: float,
                     offset: float = PEAK_OFFSET, cap: int = PER_POINT_CAP) -> list[dict]:
     """
     规划候选时间戳:窗内每页边界产一个候选(峰后偏移),无边界则用窗中点。
+    窗尾放不下峰后稳定帧的边界不产候选——clamp 回边界前会拍到旧页,与
+    reason="scene-peak" 语义矛盾;该新页属于下一节点,由其窗口前扩覆盖。
 
     args:
         leaf: 叶节点，包含 {"id": str, "win": (t0, t1)}
@@ -48,10 +51,12 @@ def plan_candidates(leaf: dict, boundaries: list[dict], duration: float,
         候选列表，每项 {"node_id": str, "t": timestamp, "reason": str, "peak_score": float}
     """
     t0, t1 = leaf["win"]
+    t_max = min(t1 - 0.05, duration - 0.1)
     cands = [
-        {"node_id": leaf["id"], "t": min(b["t"] + offset, t1 - 0.05, duration - 0.1),
+        {"node_id": leaf["id"], "t": b["t"] + offset,
          "reason": "scene-peak", "peak_score": b["score"]}
-        for b in boundaries if t0 <= b["t"] < t1
+        for b in boundaries
+        if t0 <= b["t"] < t1 and b["t"] + offset <= t_max
     ]
     if not cands:
         cands = [{"node_id": leaf["id"], "t": (t0 + t1) / 2,

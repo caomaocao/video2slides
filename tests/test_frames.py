@@ -36,6 +36,20 @@ def test_plan_candidates_midpoint_fallback():
     assert cs[0]["t"] == pytest.approx(35.0)
 
 
+def test_align_window_never_shrinks_forward():
+    """边界因抖动落在 t_start 之后 0.5s 内时,起点保持不变(只前扩不后缩)。"""
+    b = [{"n": 1, "t": 12.4, "score": 0.5}]
+    assert frames.align_window(12.0, 30.0, b, 600.0) == (12.0, 30.0)
+
+
+def test_plan_candidates_skips_trailing_edge_boundary():
+    """窗尾放不下峰后稳定帧的边界不产候选(该页由下一节点前扩覆盖),回退窗中点。"""
+    b = [{"n": 1, "t": 21.98, "score": 0.5}]
+    leaf = {"id": "3.1", "win": (10.0, 22.0)}
+    cs = frames.plan_candidates(leaf, b, 600.0)
+    assert len(cs) == 1 and cs[0]["reason"] == "window-midpoint"
+
+
 def test_t_to_frame_nearest():
     rows = [{"n": i, "t": i * 0.1, "score": 0} for i in range(100)]
     assert frames.t_to_frame(2.04, rows) == 20
