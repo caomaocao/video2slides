@@ -9,7 +9,7 @@ from pathlib import Path
 
 from common import emit, load_json, rgb_signature, save_json, sig_diff_ratio, wp
 
-_PUNCT = re.compile(r"[\s,。,、.!?!?::;;\"'\"''()\[\]【】《》<>—\-…·]+")
+_PUNCT = re.compile(r"[\s,。,、.!?!?::;;\"'“”‘’()()\[\]【】《》<>—\-…·]+")
 REQUIRED_NODE_KEYS = ("id", "title", "t_start", "t_end", "evidence")
 
 
@@ -19,13 +19,18 @@ def norm_text(s: str) -> str:
 
 
 def quote_ok(quote: str, seg_text: str, ratio: float = 0.85) -> bool:
-    """归一化后 substring 优先,否则 difflib.SequenceMatcher.ratio() >= ratio;空 quote 恒 False。"""
+    """quote 存在性:归一化 substring 优先;否则滑窗局部 fuzzy(ASR 噪声容忍,spec §7)。"""
     nq, nt = norm_text(quote), norm_text(seg_text)
     if not nq:
         return False
     if nq in nt:
         return True
-    return difflib.SequenceMatcher(None, nq, nt).ratio() >= ratio
+    if len(nt) <= len(nq):
+        return difflib.SequenceMatcher(None, nq, nt).ratio() >= ratio
+    w = len(nq)
+    best = max(difflib.SequenceMatcher(None, nq, nt[i:i + w]).ratio()
+               for i in range(0, len(nt) - w + 1))
+    return best >= ratio
 
 
 def _walk(nodes):
@@ -63,29 +68,32 @@ def validate(sb: dict, transcript: dict, duration: float) -> dict:
 
 
 def dedup_across_nodes(sb: dict, candidates: list[dict]) -> dict:
-    """全部已选 media 帧两两签名比对(sig_diff_ratio < 0.10 判重)→ 保留 score 最高者,
-    其余节点回退 candidates.json 中该节点未用的非 dup 次名;候选耗尽则删该 media 并记录(节点转纯文字,spec §11)。"""
+    """跨要点媒体唯一性(spec §6):分高者优先保位,重复者回退未用候选,耗尽降纯文字。"""
     picked = [(nd, m) for nd in _walk(sb["outline"]) for m in (nd.get("media") or [])
               if m.get("type") == "frame" and m.get("proxy_path")]
-    sigs = [rgb_signature(m["proxy_path"]) for _, m in picked]
+    picked.sort(key=lambda nm: -(nm[1].get("score") or 0))
+    kept_sigs: list[bytes] = []
     used = {m["proxy_path"] for _, m in picked}
     report = {"replaced": [], "dropped": []}
-    for i in range(len(picked)):
-        for j in range(i + 1, len(picked)):
-            if sig_diff_ratio(sigs[i], sigs[j]) >= 0.10:
-                continue
-            loser_idx = j if picked[i][1]["score"] >= picked[j][1]["score"] else i
-            nd, m = picked[loser_idx]
-            alt = next((c for c in candidates
-                        if c["node_id"] == nd["id"] and not c.get("dup")
-                        and c["file"] not in used), None)
-            if alt:
+    for nd, m in picked:
+        sig = rgb_signature(m["proxy_path"])
+        if all(sig_diff_ratio(sig, k) >= 0.10 for k in kept_sigs):
+            kept_sigs.append(sig)
+            continue
+        alts = sorted((c for c in candidates
+                       if c["node_id"] == nd["id"] and not c.get("dup") and c["file"] not in used),
+                      key=lambda c: -(c.get("score") or 0))
+        for alt in alts:
+            alt_sig = rgb_signature(alt["file"])
+            if all(sig_diff_ratio(alt_sig, k) >= 0.10 for k in kept_sigs):
                 report["replaced"].append({"node": nd["id"], "from": m["proxy_path"], "to": alt["file"]})
                 m.update(proxy_path=alt["file"], t=alt["t"], score=alt.get("score", 0), reason=alt["reason"])
                 used.add(alt["file"])
-            else:
-                nd["media"].remove(m)          # 候选耗尽 → 该要点转纯文字(spec §11)
-                report["dropped"].append(nd["id"])
+                kept_sigs.append(alt_sig)
+                break
+        else:
+            nd["media"].remove(m)       # 候选耗尽:该要点转纯文字(spec §11)
+            report["dropped"].append(nd["id"])
     return report
 
 
