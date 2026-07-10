@@ -82,3 +82,20 @@ def test_subs_download_cmd_manual_vs_ai():
     src3 = fetch.normalize_url("https://youtu.be/TUmEcL3Feo0")
     cmd3 = fetch.subs_download_cmd(src3, ("auto", "en"), Path("/tmp/w"), None)
     assert "--write-auto-subs" in cmd3
+
+
+def test_fetch_subs_picks_matching_lang_file(tmp_path, monkeypatch):
+    """subs_dir 已有旧语言残留时,必须选中目标语言文件而非字母序首个。"""
+    import common
+    work = tmp_path / ".work"
+    subs = work / "subs"; subs.mkdir(parents=True)
+    (subs / "sub.en.vtt").write_text("WEBVTT\n", encoding="utf-8")   # 陈旧残留(字母序在前)
+    common.save_json(common.wp(work, "meta"), {"language": "zh-Hans"})
+    common.save_json(common.wp(work, "raw_info"),
+                     {"subtitles": {"zh-Hans": [{"ext": "vtt"}]}, "automatic_captions": {}})
+    monkeypatch.setattr(
+        fetch, "run",
+        lambda cmd, timeout=300: (subs / "sub.zh-Hans.vtt").write_text("WEBVTT\n", encoding="utf-8"))
+    src = fetch.normalize_url("https://www.youtube.com/watch?v=QNiaoD5RxPA")
+    sub = fetch.fetch_subs(src, work, None, force=True)
+    assert sub["lang"] == "zh-Hans" and sub["path"].endswith("sub.zh-Hans.vtt")

@@ -149,7 +149,10 @@ def fetch_subs(source: dict, work: Path, cookies: str | None, force: bool):
         return None
     subs_dir.mkdir(parents=True, exist_ok=True)
     run(subs_download_cmd(source, track, work, cookies), timeout=300)
-    files = sorted(list(subs_dir.glob("sub*.vtt")) + list(subs_dir.glob("sub*.srt")))
+    # 精确匹配刚下载的目标轨文件(yt-dlp 命名 sub.<lang>.<ext>),避免残留旧语言文件按字母序被错选
+    files = [f for f in sorted(subs_dir.glob(f"sub.{track[1]}.*")) if f.suffix in {".vtt", ".srt"}]
+    if not files:
+        files = sorted(list(subs_dir.glob("sub*.vtt")) + list(subs_dir.glob("sub*.srt")))
     if not files:
         return None
     sub = {"kind": track[0], "lang": track[1], "path": str(files[0])}
