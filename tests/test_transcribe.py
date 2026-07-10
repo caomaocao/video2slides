@@ -26,6 +26,23 @@ def test_dedup_merges_adjacent_identical():
     assert out[0]["t_end"] == pytest.approx(5.0)
 
 
+def test_parse_vtt_short_form_timestamps():
+    """在 WebVTT 中 MM:SS.mmm(无小时段)合法,不得静默丢弃。"""
+    cues = transcribe.parse_vtt("WEBVTT\n\n00:01.000 --> 00:03.500\nhello world\n")
+    assert cues == [{"t_start": 1.0, "t_end": 3.5, "text": "hello world"}]
+
+
+def test_cli_errors_on_zero_segments(tmp_path):
+    import common
+    work = tmp_path / ".work"; (work / "subs").mkdir(parents=True)
+    sub = work / "subs" / "sub.zh.vtt"
+    sub.write_text("WEBVTT\n\n没有时间行的垃圾内容\n", encoding="utf-8")
+    common.save_json(common.wp(work, "meta"),
+                     {"language": "zh", "subtitle": {"kind": "manual", "lang": "zh", "path": str(sub)}})
+    assert transcribe.run_cli(["--work", str(work)]) == 1
+    assert not common.wp(work, "transcript").exists()
+
+
 def test_cli_writes_transcript(tmp_path):
     import common
     work = tmp_path / ".work"

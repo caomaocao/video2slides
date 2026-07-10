@@ -8,13 +8,13 @@ from pathlib import Path
 
 from common import emit, is_fresh, load_json, save_json, wp
 
-_TS = re.compile(r"(\d+):(\d{2}):(\d{2})[.,](\d{3})")
+_TS = re.compile(r"(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})")
 _TAG = re.compile(r"<[^>]+>")
 
 
 def _sec(ts: str) -> float:
-    h, m, s, ms = map(int, _TS.match(ts).groups())
-    return h * 3600 + m * 60 + s + ms / 1000
+    h, m, s, ms = _TS.match(ts).groups()
+    return int(h or 0) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
 
 
 def _parse_blocks(text: str) -> list[dict]:
@@ -75,6 +75,9 @@ def run_cli(argv=None) -> int:
     text = sub_p.read_text(encoding="utf-8")
     cues = parse_srt(text) if sub_p.suffix == ".srt" else parse_vtt(text)
     segs = [{"id": i, **c} for i, c in enumerate(dedup_cues(cues))]
+    if not segs:
+        emit("解析出 0 段——字幕文件格式异常或内容为空,不落盘")
+        return 1
     save_json(out_p, {"language": meta.get("language"), "source": f"{sub['kind']}:{sub['lang']}", "segments": segs})
     emit(f"transcript: {out_p}({len(segs)} 段)", next_hint=f"python scripts/signals.py --work {work}")
     return 0
