@@ -43,22 +43,24 @@ def probe() -> dict:
     return res
 
 
-def main() -> int:
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--check", action="store_true")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     p = probe()
     if args.json:
+        # --json 模式:stdout 只输出纯 JSON,状态由 JSON 内容 + exit code 承载
         print(json.dumps(p, ensure_ascii=False, indent=1))
     missing = [k for k in ("ffmpeg", "ffprobe", "yt_dlp") if not p[k]["found"]]
     if missing:
-        if not args.check:
-            emit(f"缺必装二进制: {', '.join(missing)}", "macOS: brew install ffmpeg yt-dlp")
+        if not args.check and not args.json:
+            names = ", ".join(m.replace("_", "-") for m in missing)
+            emit(f"缺必装二进制: {names}", "macOS: brew install ffmpeg yt-dlp")
         return 2
     if not p["tesseract"]["found"]:
-        if not args.check:
+        if not args.check and not args.json:
             emit("tesseract 缺失:文字密度打分降级为边缘密度代理(不阻塞)")
         return 4
     if not args.check and not args.json:
