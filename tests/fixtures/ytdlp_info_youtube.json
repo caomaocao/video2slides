@@ -1,0 +1,14 @@
+{
+  "id": "QNiaoD5RxPA", "title": "Token 到底是什么?", "duration": 631.0,
+  "language": "zh-Hans", "uploader": "马克的技术工作坊",
+  "chapters": [
+    {"title": "视频内容简介", "start_time": 0.0, "end_time": 65.0},
+    {"title": "什么是 Token", "start_time": 65.0, "end_time": 250.0}
+  ],
+  "heatmap": [
+    {"start_time": 0.0, "end_time": 12.6, "value": 1.0},
+    {"start_time": 12.6, "end_time": 25.2, "value": 0.55}
+  ],
+  "subtitles": {"zh-Hans": [{"ext": "vtt"}], "zh-Hant": [{"ext": "vtt"}]},
+  "automatic_captions": {}
+}
