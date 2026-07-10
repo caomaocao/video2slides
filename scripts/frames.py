@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import bisect
+from pathlib import Path
+
+from common import rgb_signature, run, save_json, sig_diff_ratio, wp
 
 # 初始值(spec §14)
 PEAK_OFFSET = 0.7        # 避糊:峰后偏移取稳定帧
@@ -82,3 +85,44 @@ def t_to_frame(t: float, rows: list[dict]) -> int:
     if i >= len(rows):
         return rows[-1]["n"]
     return rows[i]["n"] if abs(ts[i] - t) < abs(t - ts[i - 1]) else rows[i - 1]["n"]
+
+
+def build_select_expr(frame_ns: list[int]) -> str:
+    """构造 ffmpeg select 复合表达式:升序去重后拼接(供 -filter_script:v 写入文件,规避命令行长度上限)。"""
+    terms = "+".join(f"eq(n,{n})" for n in sorted(set(frame_ns)))
+    return f"select='{terms}'"
+
+
+def extract_candidates(work: Path, cands: list[dict], rows: list[dict]) -> list[dict]:
+    """单遍解码抽出全部候选帧到 frames_proxy/f_%05d.jpg(输出序 = 帧号升序),回填 n/file,落盘 candidates.json。"""
+    frames_dir = wp(work, "frames_dir")
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    for c in cands:
+        c["n"] = t_to_frame(c["t"], rows)
+    # 同帧号合并(不同要点命中同一帧:保留首个,后续在跨要点去重阶段处理)
+    by_n: dict[int, dict] = {}
+    for c in sorted(cands, key=lambda c: c["n"]):
+        by_n.setdefault(c["n"], c)
+    ordered = list(by_n.values())
+
+    sel = work / "select.txt"
+    sel.write_text(build_select_expr([c["n"] for c in ordered]), encoding="utf-8")
+    run(["ffmpeg", "-y", "-v", "error", "-i", wp(work, "proxy"),
+         "-filter_script:v", sel, "-fps_mode", "passthrough",
+         "-q:v", "2", frames_dir / "f_%05d.jpg"], timeout=1800)
+    for i, c in enumerate(ordered, start=1):   # 输出序 = 帧号升序
+        c["file"] = str(frames_dir / f"f_{i:05d}.jpg")
+    save_json(wp(work, "candidates"), ordered)
+    return ordered
+
+
+def dedup_candidates(cands: list[dict]) -> list[dict]:
+    """时间序遍历,对比最近 4 张保留帧签名,sig_diff_ratio < DUP_RATIO 判重标 dup(不删,剪枝阶段处理)。"""
+    kept_sigs: list[bytes] = []
+    for c in cands:                             # 已按时间(帧号)序
+        sig = rgb_signature(c["file"])
+        is_dup = any(sig_diff_ratio(sig, k) < DUP_RATIO for k in kept_sigs[-4:])
+        c["dup"] = is_dup
+        if not is_dup:
+            kept_sigs.append(sig)               # 滑窗只滚动保留帧(spec §8.1:抑制 A-B-A)
+    return cands

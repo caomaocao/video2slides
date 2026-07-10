@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 import frames
@@ -54,3 +56,31 @@ def test_t_to_frame_nearest():
     rows = [{"n": i, "t": i * 0.1, "score": 0} for i in range(100)]
     assert frames.t_to_frame(2.04, rows) == 20
     assert frames.t_to_frame(2.06, rows) == 21
+
+
+def test_build_select_expr_sorted_unique():
+    assert frames.build_select_expr([300, 60, 300]) == "select='eq(n,60)+eq(n,300)'"
+
+
+def test_extract_and_dedup_on_synthetic(tmp_path):
+    """红红蓝三帧候选:第二张红判重,蓝不判重。"""
+    import subprocess
+    import common
+    work = tmp_path / ".work"; work.mkdir()
+    proxy = common.wp(work, "proxy")
+    subprocess.run(
+        ["ffmpeg", "-v", "error",
+         "-f", "lavfi", "-i", "color=red:s=320x180:r=10:d=2",
+         "-f", "lavfi", "-i", "color=blue:s=320x180:r=10:d=2",
+         "-filter_complex", "[0][1]concat=n=2:v=1:a=0,format=yuv420p", "-y", str(proxy)],
+        check=True)
+    rows = [{"n": i, "t": i / 10, "score": 0.0} for i in range(40)]
+    cands = [
+        {"node_id": "1", "t": 0.5, "reason": "scene-peak", "peak_score": 0.4},
+        {"node_id": "2", "t": 1.5, "reason": "scene-peak", "peak_score": 0.4},   # 仍是红
+        {"node_id": "3", "t": 3.0, "reason": "scene-peak", "peak_score": 0.4},   # 蓝
+    ]
+    out = frames.extract_candidates(work, cands, rows)
+    assert all(Path(c["file"]).exists() for c in out)
+    d = frames.dedup_candidates(out)
+    assert [c.get("dup", False) for c in d] == [False, True, False]
