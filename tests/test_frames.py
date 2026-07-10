@@ -193,3 +193,39 @@ def test_finalize_marks_quality_limited_on_failure(tmp_path, monkeypatch):
     assert m["finalized"] is True and m["quality_limited"] is True
     assert m["final_path"] == str(proxy_frame)
     assert rep["degraded"] == 1
+
+
+def test_finalize_names_by_node_and_reuses_direct_url(tmp_path, monkeypatch):
+    """文件名含 node_id 防跨节点同 t 覆盖;直链一批只取一次;clip 不处理。"""
+    import common
+    work = tmp_path / ".work"
+    fdir = common.wp(work, "frames_dir"); fdir.mkdir(parents=True)
+    p1 = fdir / "f_00001.jpg"; p1.write_bytes(b"a")
+    p2 = fdir / "f_00002.jpg"; p2.write_bytes(b"b")
+
+    def med(p):
+        return {"type": "frame", "proxy_path": str(p), "t": 3.0, "score": 0.5,
+                "finalized": False, "final_path": None, "on_page": True}
+
+    sb = {"video": {"duration": 100.0}, "outline": [
+        {"id": "1", "level": 1, "title": "x", "summary": "", "t_start": 0, "t_end": 50,
+         "evidence": [{"segment_id": 0, "quote": "q"}], "children": [], "media": [med(p1)]},
+        {"id": "2", "level": 1, "title": "y", "summary": "", "t_start": 50, "t_end": 100,
+         "evidence": [{"segment_id": 0, "quote": "q"}], "children": [],
+         "media": [med(p2), {"type": "clip", "on_page": True, "finalized": False,
+                             "t_start": 1.0, "t_end": 3.0, "final_path": None}]}]}
+    common.save_json(common.wp(work, "storyboard"), sb)
+    common.save_json(common.wp(work, "meta"),
+                     {"duration": 100.0,
+                      "source": {"canonical_url": "https://example.com/x", "platform": "youtube"}})
+    calls = []
+    monkeypatch.setattr(frames, "_direct_url", lambda *a, **k: calls.append(1) or "fake://url")
+    monkeypatch.setattr(frames, "grab_final_frame",
+                        lambda url, t, out: Path(out).write_bytes(b"hi"))
+    rep = frames.finalize(work, cookies=None)
+    assert rep["done"] == 2 and rep["degraded"] == 0
+    out = common.load_json(common.wp(work, "storyboard"))
+    assert out["outline"][0]["media"][0]["final_path"].endswith("final_1_3.0.jpg")
+    assert out["outline"][1]["media"][0]["final_path"].endswith("final_2_3.0.jpg")
+    assert len(calls) == 1                                        # 直链复用
+    assert out["outline"][1]["media"][1].get("finalized") is False  # clip 不处理

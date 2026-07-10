@@ -290,31 +290,35 @@ def grab_final_frame(direct_url: str, t: float, out: Path) -> None:
 
 
 def finalize(work: Path, cookies: str | None) -> dict:
-    """定稿懒抓:仅对 on_page 且未 finalized 的 media 抓高清帧;直链每次 finalize 复用一次,
-    过期(RuntimeError)重取一次;两次都失败则回退代理帧并标 quality_limited(spec §8.4、§11)。"""
+    """定稿懒抓:仅对 type=="frame" 且 on_page 且未 finalized 的 media 抓高清帧(clip 无 t 键,
+    截取另行处理);直链每次 finalize 复用一次,过期(RuntimeError)重取一次;两次都失败则回退
+    代理帧并标 quality_limited(spec §8.4、§11)。定稿帧按 final_<node_id>_<t>.jpg 命名,防止
+    不同节点同 t 互相覆盖;每处理完一条即落盘 storyboard,中断后已完成项可跳过续跑(spec §3)。"""
     sb = load_json(wp(work, "storyboard"))
     meta = load_json(wp(work, "meta"))
     assets = work.parent / "assets"
-    todo = [m for nd in _walk_outline(sb["outline"]) for m in (nd.get("media") or [])
-            if m.get("on_page") and not m.get("finalized")]
+    assets.mkdir(parents=True, exist_ok=True)   # 输出目录由 finalize 保障,不依赖抓帧步骤创建
+    todo = [(nd, m) for nd in _walk_outline(sb["outline"]) for m in (nd.get("media") or [])
+            if m.get("type") == "frame" and m.get("on_page") and not m.get("finalized")]
     rep = {"done": 0, "degraded": 0}
     url = None
-    for m in todo:
-        out = assets / f"final_{m['t']:.1f}.jpg"
+    for nd, m in todo:
+        out = assets / f"final_{nd['id']}_{m['t']:.1f}.jpg"
         try:
             url = url or _direct_url(meta["source"], cookies)
             grab_final_frame(url, m["t"], out)
         except RuntimeError:
             try:
-                url = _direct_url(meta["source"], cookies)     # 直链过期:重取一次(spec §8.4)
+                url = _direct_url(meta["source"], cookies)      # 直链过期:重取一次(spec §8.4)
                 grab_final_frame(url, m["t"], out)
             except RuntimeError:
                 m.update(final_path=m["proxy_path"], finalized=True, quality_limited=True)
                 rep["degraded"] += 1
+                save_json(wp(work, "storyboard"), sb)           # 逐帧落盘:中断可续跑(spec §3)
                 continue
         m.update(final_path=str(out), finalized=True)
         rep["done"] += 1
-    save_json(wp(work, "storyboard"), sb)
+        save_json(wp(work, "storyboard"), sb)
     return rep
 
 
