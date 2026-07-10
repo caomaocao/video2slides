@@ -54,6 +54,7 @@ exit 3 = 无字幕轨:告知用户该视频需 ASR(本版未含),停止。
 - 把选中项写回 storyboard 各节点 `media`:`{"type":"frame","proxy_path":<map 的 file>,"final_path":null,"finalized":false,"t":<map 的 t>,"reason":<候选 reason>,"score":<候选 score>}`——`reason`/`score` 不在 map.json 里,需按 `file` 路径去同一份 `.work/candidates.json`(本步开头已生成)里查对应候选取值
 - 若某张 sheet 的 `dropped_node_ids` 非空(该章候选量超过 18 帧/2 张 sheet 的预算上限,轮转配额未覆盖到的节点整个被挤出 sheet),这些节点不会出现在任何 sheet 里,需直接读 `.work/candidates.json` 按 `node_id` 过滤出它们的候选(未剪枝的原始候选,含 `score`/`reason`/`file`),挑分数最高的 1 张,不必额外 Read 图——`score` 已经是 ffmpeg 边缘/文字密度 + 峰值合成的排序依据
 - 跑 `python scripts/storyboard.py dedup --work <W>`(跨要点去重,自动替换/降级)
+- **去重仲裁(宿主复核)**:dedup 的 stdout 会列出替换/降级数量。16×16 签名对「同版式、不同内容」的讲义页(如渐进 build 的 BPE 演示页)分辨力不足,可能误伤——对被降级(dropped)的节点,回看你在 sheet 上已目验过的对应帧:内容确实与保留帧不同的,把该节点 media 恢复回去(语义判断归宿主,机器去重只防"同一截图上多页");确属重复的维持纯文字。恢复后重跑 validate 确认通过
 
 ### 6. 粒度询问(唯一交互点,合并 frontend-slides Phase 1)
 用 AskUserQuestion 问一次:
