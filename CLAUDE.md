@@ -16,7 +16,7 @@ The full design is written up in `docs/video2slides-spec-v0.4.md` (Chinese; v0.4
 - `uv sync` — install/sync the venv from the lockfile
 - `uv run python main.py` — run the current entry point
 - `uv add <pkg>` / `uv remove <pkg>` — manage dependencies (see Dependency policy below before adding anything to the runtime path)
-- No lint or test tooling is configured yet (no ruff/pytest config in `pyproject.toml`).
+- `uv run pytest` — run tests (pytest is a dev-only dependency; runtime stays stdlib-only)
 
 ## Target architecture (per the spec)
 
