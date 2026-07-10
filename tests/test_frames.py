@@ -165,3 +165,31 @@ def test_cap_per_node_round_robin_no_starvation():
     picked, truncated, dropped = frames._cap_per_node(g, cap=18)
     assert truncated is True and dropped == []
     assert {c["node_id"] for c in picked} == {str(n) for n in range(8)}
+
+
+def test_highres_selector():
+    assert frames.highres_format_selector().startswith("bv*[height>=1080]")
+
+
+def test_finalize_marks_quality_limited_on_failure(tmp_path, monkeypatch):
+    import common
+    work = tmp_path / ".work"
+    fdir = common.wp(work, "frames_dir"); fdir.mkdir(parents=True)
+    proxy_frame = fdir / "f_00001.jpg"; proxy_frame.write_bytes(b"fake")
+    sb = {"video": {"duration": 100.0},
+          "outline": [{"id": "1", "level": 1, "title": "x", "summary": "", "t_start": 0, "t_end": 50,
+                       "evidence": [{"segment_id": 0, "quote": "q"}], "children": [],
+                       "media": [{"type": "frame", "proxy_path": str(proxy_frame), "t": 3.0,
+                                  "score": 0.5, "finalized": False, "final_path": None,
+                                  "on_page": True}]}]}
+    common.save_json(common.wp(work, "storyboard"), sb)
+    common.save_json(common.wp(work, "meta"),
+                     {"duration": 100.0, "source": {"canonical_url": "https://example.com/x",
+                                                    "platform": "youtube"}})
+    monkeypatch.setattr(frames, "_direct_url", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("网络失败")))
+    rep = frames.finalize(work, cookies=None)
+    out = common.load_json(common.wp(work, "storyboard"))
+    m = out["outline"][0]["media"][0]
+    assert m["finalized"] is True and m["quality_limited"] is True
+    assert m["final_path"] == str(proxy_frame)
+    assert rep["degraded"] == 1

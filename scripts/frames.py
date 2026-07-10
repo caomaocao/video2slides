@@ -269,17 +269,74 @@ def make_sheets(work: Path, selected: dict, chapters: list[dict]) -> list[dict]:
     return out
 
 
+def highres_format_selector() -> str:
+    """高清直链的 yt-dlp 格式选择器:优先 ≥1080p,否则最佳视频流,再否则最佳合并流。"""
+    return "bv*[height>=1080]/bv*/b"
+
+
+def _direct_url(source: dict, cookies: str | None) -> str:
+    """取一条高清直链(spec §8.4):直链有时效,由调用方负责过期后重取,这里只管取一次。"""
+    cmd = ["yt-dlp", "--no-playlist", "-g", "-f", highres_format_selector()]
+    if cookies:
+        cmd += ["--cookies-from-browser", cookies]
+    return run(cmd + [source["canonical_url"]], timeout=120).splitlines()[0]
+
+
+def grab_final_frame(direct_url: str, t: float, out: Path) -> None:
+    """按时间戳从高清直链单帧抽取(定稿懒抓,只抓真正上页的帧,spec §8.4)。"""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    run(["ffmpeg", "-y", "-v", "error", "-ss", f"{t:.3f}", "-i", direct_url,
+         "-frames:v", "1", "-q:v", "2", out], timeout=300)
+
+
+def finalize(work: Path, cookies: str | None) -> dict:
+    """定稿懒抓:仅对 on_page 且未 finalized 的 media 抓高清帧;直链每次 finalize 复用一次,
+    过期(RuntimeError)重取一次;两次都失败则回退代理帧并标 quality_limited(spec §8.4、§11)。"""
+    sb = load_json(wp(work, "storyboard"))
+    meta = load_json(wp(work, "meta"))
+    assets = work.parent / "assets"
+    todo = [m for nd in _walk_outline(sb["outline"]) for m in (nd.get("media") or [])
+            if m.get("on_page") and not m.get("finalized")]
+    rep = {"done": 0, "degraded": 0}
+    url = None
+    for m in todo:
+        out = assets / f"final_{m['t']:.1f}.jpg"
+        try:
+            url = url or _direct_url(meta["source"], cookies)
+            grab_final_frame(url, m["t"], out)
+        except RuntimeError:
+            try:
+                url = _direct_url(meta["source"], cookies)     # 直链过期:重取一次(spec §8.4)
+                grab_final_frame(url, m["t"], out)
+            except RuntimeError:
+                m.update(final_path=m["proxy_path"], finalized=True, quality_limited=True)
+                rep["degraded"] += 1
+                continue
+        m.update(final_path=str(out), finalized=True)
+        rep["done"] += 1
+    save_json(wp(work, "storyboard"), sb)
+    return rep
+
+
+def _walk_outline(nodes):
+    """深度优先遍历大纲树,逐节点(含中间层)产出——finalize 需要访问每层节点的 media 列表。"""
+    for nd in nodes:
+        yield nd
+        yield from _walk_outline(nd.get("children") or [])
+
+
 def run_cli(argv=None) -> int:
     """CLI:--probe 全片均匀 15 帧供轴 A 视觉形态仲裁;--candidates 走完整对齐/规划/抽取/去重/
-    打分/剪枝/拼图链路并回填 candidates.json;--finalize 留给 Task 11 实现(spec §8)。"""
+    打分/剪枝/拼图链路并回填 candidates.json;--finalize 对已上页的 media 懒抓高清帧(spec §8.4)。"""
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--work", required=True)
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--probe", action="store_true")
     mode.add_argument("--candidates", action="store_true")
-    mode.add_argument("--finalize", action="store_true")   # Task 11 实现
+    mode.add_argument("--finalize", action="store_true")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--cookies-from-browser", default=None)
     args = ap.parse_args(argv)
     work = Path(args.work)
     rows = load_json(wp(work, "scene_scores"))
@@ -317,6 +374,12 @@ def run_cli(argv=None) -> int:
         emit(f"候选 {len(ordered)} 帧,叶子 {len(leaves)} 个",
              *[f"sheet: {s['sheet']}" for s in sheets],
              next_hint="Claude Read sheets 终选各要点用帧并回填 storyboard.media(spec §8.3)")
+        return 0
+
+    if args.finalize:
+        rep = finalize(work, cookies=args.cookies_from_browser)
+        emit(f"定稿懒抓: 成功 {rep['done']},降级 {rep['degraded']}",
+             next_hint="调用 frontend-slides 生成 HTML(SKILL.md 渲染节)")
         return 0
     return 2
 
