@@ -110,6 +110,54 @@ def fetch_meta(source: dict, work: Path, cookies: str | None, force: bool) -> di
     return meta
 
 
+def proxy_format_selector() -> str:
+    # 代理流:≤360p 仅视频轨(分析不需音频;ASR/clip 需要时再拉,spec §8.0)
+    return "bv*[height<=360][ext=mp4]/bv*[height<=360]/b[height<=360]"
+
+
+def fetch_proxy(source: dict, work: Path, cookies: str | None, force: bool) -> Path:
+    proxy = wp(work, "proxy")
+    if not force and is_fresh(proxy):
+        return proxy
+    cmd = _ytdlp_base(source, cookies)
+    cmd[-1:-1] = ["-f", proxy_format_selector(), "--remux-video", "mp4",
+                  "-o", str(work / "proxy.%(ext)s")]
+    run(cmd, timeout=1800)
+    if not proxy.exists():
+        raise RuntimeError(f"代理流未产出: {proxy}")
+    return proxy
+
+
+def subs_download_cmd(source: dict, track: tuple[str, str], work: Path, cookies: str | None) -> list:
+    kind, lang = track
+    cmd = _ytdlp_base(source, cookies)
+    flag = "--write-auto-subs" if kind == "auto" else "--write-subs"
+    cmd[-1:-1] = ["--skip-download", flag, "--sub-langs", lang,
+                  "-o", str(wp(work, "subs_dir") / "sub")]
+    return cmd
+
+
+def fetch_subs(source: dict, work: Path, cookies: str | None, force: bool):
+    meta_p = wp(work, "meta")
+    meta = load_json(meta_p)
+    subs_dir = wp(work, "subs_dir")
+    if not force and meta.get("subtitle") and Path(meta["subtitle"]["path"]).exists():
+        return meta["subtitle"]
+    info = load_json(wp(work, "raw_info"))
+    track = pick_subtitle_track(info.get("subtitles"), info.get("automatic_captions"), meta.get("language"))
+    if track is None:
+        return None
+    subs_dir.mkdir(parents=True, exist_ok=True)
+    run(subs_download_cmd(source, track, work, cookies), timeout=300)
+    files = sorted(list(subs_dir.glob("sub*.vtt")) + list(subs_dir.glob("sub*.srt")))
+    if not files:
+        return None
+    sub = {"kind": track[0], "lang": track[1], "path": str(files[0])}
+    meta["subtitle"] = sub
+    save_json(meta_p, meta)
+    return sub
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
@@ -122,10 +170,17 @@ def main() -> int:
     work.mkdir(parents=True, exist_ok=True)
     source = normalize_url(args.url)
     meta = fetch_meta(source, work, args.cookies_from_browser, args.force)
+    proxy = fetch_proxy(source, work, args.cookies_from_browser, args.force)
+    sub = fetch_subs(source, work, args.cookies_from_browser, args.force)
+    if sub is None:
+        print("无可用字幕轨——切片范围外,需 ASR(spec §10.1 三家族)或 --transcript")
+        return 3
     emit(
         f"meta: {wp(work, 'meta')}({meta['title'][:40]},{meta['duration']:.0f}s)",
         f"priors: {wp(work, 'priors')}",
-        next_hint="下一步在 Task 4 补代理流与字幕下载",
+        f"proxy: {proxy}",
+        f"subs: {sub['path']}({sub['kind']}/{sub['lang']})",
+        next_hint=f"python scripts/transcribe.py --work {work}",
     )
     return 0
 

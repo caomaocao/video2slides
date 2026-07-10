@@ -62,3 +62,23 @@ def test_pick_subtitle_exact_match_beats_prefix_order():
 
 def test_pick_subtitle_auto_never_selects_danmaku():
     assert fetch.pick_subtitle_track({}, {"danmaku": []}, "da") is None
+
+
+def test_proxy_format_selector_is_video_only_360p():
+    sel = fetch.proxy_format_selector()
+    assert "height<=360" in sel and sel.startswith("bv*")
+
+
+def test_subs_download_cmd_manual_vs_ai():
+    src = fetch.normalize_url("https://www.youtube.com/watch?v=QNiaoD5RxPA")
+    cmd = fetch.subs_download_cmd(src, ("manual", "zh-Hans"), Path("/tmp/w"), None)
+    assert "--write-subs" in cmd and "--write-auto-subs" not in cmd
+    assert cmd[cmd.index("--sub-langs") + 1] == "zh-Hans"
+
+    src2 = fetch.normalize_url("https://www.bilibili.com/video/BV1k44LzPEhU?p=2")
+    cmd2 = fetch.subs_download_cmd(src2, ("ai", "ai-zh"), Path("/tmp/w"), "chrome")
+    assert "--cookies-from-browser" in cmd2 and "chrome" in cmd2
+
+    src3 = fetch.normalize_url("https://youtu.be/TUmEcL3Feo0")
+    cmd3 = fetch.subs_download_cmd(src3, ("auto", "en"), Path("/tmp/w"), None)
+    assert "--write-auto-subs" in cmd3
