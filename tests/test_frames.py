@@ -145,3 +145,23 @@ def test_make_sheets_caps_two_per_chapter(tmp_path):
     assert len(sheets) == 2                               # 每章 ≤2 张(预算)
     assert sheets[0]["map"]["truncated"] is True
     assert Path(sheets[0]["sheet"]).exists()
+
+
+def test_group_by_chapters_covers_gaps_and_tail():
+    """章间缝隙与末章之后的候选必须归入最近的章,零丢帧。"""
+    chapters = [{"title": "A", "t_start": 0.0, "t_end": 5.0},
+                {"title": "B", "t_start": 5.0, "t_end": 10.0}]
+    flat = [{"node_id": "1", "t": 2.0}, {"node_id": "2", "t": 12.0}]   # 12.0 在末章之后
+    groups = frames._group_by_chapters(flat, chapters)
+    all_ids = {c["node_id"] for _, g in groups for c in g}
+    assert all_ids == {"1", "2"}
+    assert groups[1][0] == "B" and groups[1][1][0]["t"] == 12.0
+
+
+def test_cap_per_node_round_robin_no_starvation():
+    """8 节点 × 3 候选,cap 18:每个节点至少 1 帧可见,无节点被整体截掉。"""
+    g = [{"node_id": str(n), "t": n * 10.0 + r} for n in range(8) for r in range(3)]
+    g.sort(key=lambda c: c["t"])
+    picked, truncated, dropped = frames._cap_per_node(g, cap=18)
+    assert truncated is True and dropped == []
+    assert {c["node_id"] for c in picked} == {str(n) for n in range(8)}

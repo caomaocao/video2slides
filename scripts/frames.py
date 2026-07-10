@@ -204,23 +204,51 @@ def prune_top3(cands: list[dict]) -> dict:
     return sel
 
 
+def _group_by_chapters(flat: list[dict], chapters: list[dict]) -> list[tuple[str, list[dict]]]:
+    """全覆盖分组:每个候选按最近的章起点归章(早于首章归首章,晚于末章 t_end 归末章),零丢帧。
+    不能用 [t_start, t_end) 区间过滤——章间缝隙/末章之后的候选会被静默丢弃,违背"每要点可见"契约。"""
+    if not chapters:
+        return [("", flat)] if flat else []
+    starts = [ch["t_start"] for ch in chapters]
+    buckets: list[list[dict]] = [[] for _ in chapters]
+    for c in flat:
+        i = max(bisect.bisect_right(starts, c["t"]) - 1, 0)
+        buckets[i].append(c)
+    return [(chapters[i].get("title", ""), b) for i, b in enumerate(buckets) if b]
+
+
+def _cap_per_node(g: list[dict], cap: int = 18) -> tuple[list[dict], bool, list[str]]:
+    """预算内按节点轮转取帧:先保证每节点第 1 候选,再补第 2/第 3,防止时间序截断饿死后段节点。
+    返回 (选中帧按时间序, 是否截断, 被整体截掉的 node_id 列表——轮转下通常为空,记录仅为可审计)。"""
+    by_node: dict[str, list[dict]] = {}
+    for c in g:                                  # g 已按 t 排序,插入序即时间序
+        by_node.setdefault(c["node_id"], []).append(c)
+    picked: list[dict] = []
+    rank = 0
+    while len(picked) < cap:
+        added = False
+        for cs in by_node.values():
+            if rank < len(cs) and len(picked) < cap:
+                picked.append(cs[rank])
+                added = True
+        if not added:
+            break
+        rank += 1
+    truncated = len(picked) < len(g)
+    dropped = sorted({c["node_id"] for c in g} - {c["node_id"] for c in picked})
+    return sorted(picked, key=lambda c: c["t"]), truncated, dropped
+
+
 def make_sheets(work: Path, selected: dict, chapters: list[dict]) -> list[dict]:
-    """按章分组(无 chapters 视为单章),组内帧按时间序 scale=640:360 后 tile=3x3 拼图,
-    每章预算 ≤2 张(18 帧);超出截断并在对应 map 里记 truncated=true(spec §8.3)。"""
+    """按章全覆盖分组(无 chapters 视为单章),章内按节点轮转配额取帧后按时间序
+    scale=640:360 + tile=3x3 拼图,每章预算 ≤2 张(18 帧);截断记 truncated=true,
+    被整体截掉的节点记 dropped_node_ids(spec §8.3)。"""
     sheets_dir = wp(work, "sheets_dir")
     sheets_dir.mkdir(parents=True, exist_ok=True)
     flat = sorted((c for cs in selected.values() for c in cs), key=lambda c: c["t"])
-    groups: list[list[dict]] = []
-    if chapters:
-        for ch in chapters:
-            g = [c for c in flat if ch["t_start"] <= c["t"] < ch["t_end"]]
-            if g:
-                groups.append(g)
-    else:
-        groups = [flat]
     out = []
-    for gi, g in enumerate(groups):
-        capped, truncated = g[:18], len(g) > 18          # 每章 ≤2 张 3x3(预算,spec §8.3)
+    for gi, (ch_title, g) in enumerate(_group_by_chapters(flat, chapters)):
+        capped, truncated, dropped = _cap_per_node(g)    # 每章 ≤2 张 3x3(预算,spec §8.3)
         for si in range(0, len(capped), 9):
             batch = capped[si:si + 9]
             tmp = sheets_dir / f"tmp_ch{gi}_{si // 9}"
@@ -232,7 +260,8 @@ def make_sheets(work: Path, selected: dict, chapters: list[dict]) -> list[dict]:
                  "-i", tmp / "img_%03d.jpg",
                  "-vf", "scale=640:360,tile=3x3", "-frames:v", "1", sheet])
             _shutil.rmtree(tmp)
-            mp = {"truncated": truncated,
+            mp = {"chapter": ch_title, "truncated": truncated,
+                  "dropped_node_ids": dropped,
                   "cells": [{"cell": bi, "node_id": c["node_id"], "t": c["t"], "file": c["file"]}
                             for bi, c in enumerate(batch)]}
             save_json(sheet.with_suffix(".map.json"), mp)
