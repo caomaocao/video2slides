@@ -115,3 +115,47 @@ def test_cut_chunk_produces_mp3(tmp_path):
                     "-c:a", "libmp3lame", "-b:a", "64k", "-ac", "1", "-y", str(src)], check=True)
     out = transcribe.cut_chunk(src, 2.0, 5.0, tmp_path / "c.mp3")
     assert abs(common.ffprobe_duration(out) - 3.0) < 0.3
+
+
+def _cfg_transcriptions():
+    return {"backend": "groq", "family": "transcriptions", "base": "https://api.groq.com/openai/v1",
+            "model": "whisper-large-v3", "key": "sk-t", "language": "auto", "asr_options": False}
+
+
+def test_multipart_structure():
+    body, boundary = transcribe._multipart({"model": "m", "response_format": "verbose_json"},
+                                           "file", "c.mp3", b"AUDIO")
+    s = body.decode("latin-1")
+    assert f"--{boundary}" in s and 'name="model"' in s and 'filename="c.mp3"' in s
+    assert s.rstrip().endswith(f"--{boundary}--")
+    assert b"AUDIO" in body
+
+
+def test_asr_transcriptions_offset_and_request(tmp_path, monkeypatch):
+    import json as _json
+    resp = _json.loads((FIX / "asr_verbose_json.json").read_text(encoding="utf-8"))
+    seen = []
+    monkeypatch.setattr(transcribe, "_http_post",
+                        lambda url, headers, body, timeout=300: (seen.append((url, headers)), resp)[1])
+    c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"x")
+    c2 = tmp_path / "c2.mp3"; c2.write_bytes(b"y")
+    segs, failed = transcribe._asr_transcriptions([(c1, 0.0, 45.0), (c2, 45.0, 90.0)], _cfg_transcriptions())
+    assert failed == 0 and len(segs) == 4
+    assert segs[2]["t_start"] == pytest.approx(45.0)          # 第二块偏移校正
+    assert segs[3]["t_end"] == pytest.approx(50.0)
+    url, headers = seen[0]
+    assert url == "https://api.groq.com/openai/v1/audio/transcriptions"
+    assert headers["Authorization"] == "Bearer sk-t"
+
+
+def test_asr_transcriptions_retry_then_skip(tmp_path, monkeypatch):
+    calls = {"n": 0}
+
+    def flaky(url, headers, body, timeout=300):
+        calls["n"] += 1
+        raise RuntimeError("ASR HTTP 500")
+
+    monkeypatch.setattr(transcribe, "_http_post", flaky)
+    c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"x")
+    segs, failed = transcribe._asr_transcriptions([(c1, 0.0, 45.0)], _cfg_transcriptions())
+    assert failed == 1 and segs == [] and calls["n"] == 2      # 重试 1 次后跳过

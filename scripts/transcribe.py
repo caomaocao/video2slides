@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import json
 import re
 import subprocess as _sp
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from common import emit, ffprobe_duration, is_fresh, load_json, run, save_json, wp
@@ -97,7 +101,72 @@ SIL_ARGS = "silencedetect=noise=-35dB:d=0.4"
 CHUNK_TARGET = 45.0
 CHUNK_HARD_MAX = 600.0
 
+# ASR 传输层常量
+TRANSCRIPTIONS_MAX_BYTES = 24 * 1024 * 1024   # groq 单请求上限(切片2设计 §2)
+CHAT_MAX_B64 = 10 * 1024 * 1024               # chat 家族 base64 后上限(两家实测一致)
+
 _SIL_RE = re.compile(r"silence_(start|end): ([\d.]+)")
+
+
+def _http_post(url: str, headers: dict, body: bytes, timeout: int = 300) -> dict:
+    """全后端共用 HTTP 座(测试 monkeypatch 点);非 2xx/网络错误 → RuntimeError。"""
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"ASR HTTP {e.code}: {e.read()[:200]!r}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"ASR 网络错误: {e.reason}") from e
+
+
+def _with_retry(fn):
+    """调用 fn,RuntimeError 时重试 1 次,再失败由调用方按"块失败"处理。"""
+    try:
+        return fn()
+    except RuntimeError:
+        return fn()                            # 重试 1 次,再失败由调用方按"块失败"处理
+
+
+def _multipart(fields: dict, file_field: str, filename: str, file_bytes: bytes) -> tuple[bytes, str]:
+    """hand-write multipart/form-data body 与 boundary;返回 (body, boundary)。"""
+    boundary = "v2sBoundary7MA4YWxkTrZu0gW"
+    lines = []
+    for k, v in fields.items():
+        lines += [f"--{boundary}", f'Content-Disposition: form-data; name="{k}"', "", str(v)]
+    lines += [f"--{boundary}",
+              f'Content-Disposition: form-data; name="{file_field}"; filename="{filename}"',
+              "Content-Type: audio/mpeg", ""]
+    head = ("\r\n".join(lines) + "\r\n").encode("utf-8")
+    return head + file_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8"), boundary
+
+
+def _asr_transcriptions(chunks: list[tuple[Path, float, float]], cfg: dict) -> tuple[list[dict], int]:
+    """whisper 式端点:verbose_json 原生段级时间戳 + 块偏移校正。"""
+    segments, failed = [], 0
+    for path, t0, t1 in chunks:
+        data = Path(path).read_bytes()
+        if len(data) > TRANSCRIPTIONS_MAX_BYTES:
+            failed += 1
+            continue
+        body, boundary = _multipart({"model": cfg["model"], "response_format": "verbose_json"},
+                                    "file", Path(path).name, data)
+        headers = {"Authorization": f"Bearer {cfg['key']}",
+                   "Content-Type": f"multipart/form-data; boundary={boundary}"}
+        url = f"{cfg['base']}/audio/transcriptions"
+        try:
+            resp = _with_retry(lambda: _http_post(url, headers, body))
+        except RuntimeError:
+            failed += 1
+            continue
+        raw = resp.get("segments") or ([{"start": 0.0, "end": t1 - t0, "text": resp["text"]}]
+                                       if resp.get("text") else [])
+        for s in raw:
+            txt = (s.get("text") or "").strip()
+            if txt:
+                segments.append({"t_start": t0 + float(s["start"]),
+                                 "t_end": t0 + float(s["end"]), "text": txt})
+    return segments, failed
 
 
 def _parse_silences(stderr_text: str) -> list[float]:

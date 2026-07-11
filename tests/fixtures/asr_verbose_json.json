@@ -1,0 +1,5 @@
+{"task": "transcribe", "text": "大家好 今天讲代理流",
+ "segments": [
+  {"id": 0, "start": 0.0, "end": 2.5, "text": "大家好"},
+  {"id": 1, "start": 2.5, "end": 5.0, "text": " 今天讲代理流"}
+ ]}
