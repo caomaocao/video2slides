@@ -116,3 +116,22 @@ def test_fetch_meta_requests_lazy_subtitle_extraction(tmp_path, monkeypatch):
     src = fetch.normalize_url("https://www.bilibili.com/video/BV1k44LzPEhU?p=2")
     fetch.fetch_meta(src, tmp_path, None, force=True)
     assert "--write-subs" in seen["cmd"] and "--write-auto-subs" in seen["cmd"]
+
+
+def test_pick_subtitle_lang_match_beats_unmatched_manual():
+    """视频语言在 manual 层无匹配时,语言匹配的 auto 轨优先于任意语言 manual 轨
+    (2026-07-11 批量试产 #3 实测:en-US 视频被旧逻辑选中字典序第一的 ar 手动轨)。"""
+    subs = {"ar": [], "es": [], "hi": [], "id": [], "zh": []}
+    autos = {"en": [], "en-orig": []}
+    assert fetch.pick_subtitle_track(subs, autos, "en-US") == ("auto", "en")
+
+
+def test_pick_subtitle_ai_fallback_prefers_ai_zh():
+    """B 站多语 ai 轨、无视频语言信息时优先 ai-zh(原声轨),不受字典序影响(#16 场景)。"""
+    subs = {"ai-ar": [], "ai-en": [], "ai-zh": [], "danmaku": []}
+    assert fetch.pick_subtitle_track(subs, {}, None) == ("ai", "ai-zh")
+
+
+def test_pick_subtitle_ai_tier_lang_match_strips_prefix():
+    """ai-* 轨以去前缀语言参与匹配:video_lang=zh 应命中 ai-zh 而非落入兜底。"""
+    assert fetch.pick_subtitle_track({"ai-en": [], "ai-zh": []}, {}, "zh") == ("ai", "ai-zh")

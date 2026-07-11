@@ -69,22 +69,30 @@ def pick_subtitle_track(subtitles: dict, automatic: dict, video_lang: str | None
     lang2 = lang[:2]
 
     def by_lang(keys):
-        keys = [k for k in keys if k != "danmaku"]   # danmaku 永不入选,任何路径
+        # ai-* 轨按去前缀后的语言参与匹配;danmaku 永不入选,任何路径
+        pairs = [(k, k[3:] if k.startswith("ai-") else k) for k in keys if k != "danmaku"]
         if not lang:
             return None
-        exact = next((k for k in keys if k.lower() == lang), None)
+        exact = next((k for k, base in pairs if base.lower() == lang), None)
         if exact:
             return exact                              # 精确匹配优先于前缀匹配
-        return next((k for k in keys if k.lower().startswith(lang2)), None)
+        return next((k for k, base in pairs if base.lower().startswith(lang2)), None)
 
     manual = [k for k in subs if k != "danmaku" and not k.startswith("ai-")]
-    if manual:
-        return ("manual", by_lang(manual) or manual[0])
     ai = [k for k in subs if k.startswith("ai-")]
+    # 语言匹配跨层优先:语言不符的 manual 轨(整条 transcript 都是外语)不如语言匹配的
+    # ai/auto 轨——2026-07-11 批量试产 #3 实测:en-US 视频 manual 只有 ar/es/hi/id/zh,
+    # 旧逻辑兜底取字典序第一个(阿拉伯语),大纲语言整个跑偏
+    for kind, keys in (("manual", manual), ("ai", ai), ("auto", list(autos))):
+        k = by_lang(keys)
+        if k:
+            return (kind, k)
+    if manual:
+        return ("manual", manual[0])
     if ai:
-        return ("ai", by_lang(ai) or ai[0])
-    k = by_lang(autos)
-    return ("auto", k) if k else None
+        # B 站多语 ai 轨中 ai-zh 通常是原声轨、其余为机翻(启发式):无视频语言信息时优先 ai-zh
+        return ("ai", "ai-zh" if "ai-zh" in ai else ai[0])
+    return None
 
 
 def _ytdlp_base(source: dict, cookies_from_browser: str | None) -> list:
