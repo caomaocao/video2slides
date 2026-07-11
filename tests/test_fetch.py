@@ -175,3 +175,46 @@ def test_main_no_subs_no_asr_returns_3(tmp_path, monkeypatch):
     rc = fetch.main(["--url", "https://www.youtube.com/watch?v=QNiaoD5RxPA",
                      "--work", str(tmp_path / ".work")])
     assert rc == 3
+
+
+def test_normalize_url_local_path(tmp_path):
+    """本地文件输入:normalize_url 识别存在的路径,返回 platform=local 和绝对路径。"""
+    f = tmp_path / "v1.mp4"; f.write_bytes(b"x")
+    s = fetch.normalize_url(str(f))
+    assert s["platform"] == "local" and s["vid"] == "v1"
+    assert s["badge_url_template"] is None and s["canonical_url"] is None
+    assert s["path"] == str(f)
+    # 不存在且非 URL → ValueError
+    with pytest.raises(ValueError):
+        fetch.normalize_url(str(tmp_path / "nope.mp4"))
+
+
+def test_local_meta_sidecar(tmp_path):
+    """_local_meta 读 .json sidecar(视频号格式):title/nickname/duration 提取。"""
+    import shutil
+    v = tmp_path / "20260702_x.mp4"; v.write_bytes(b"x")
+    shutil.copy(FIX / "sidecar_wechat.json", tmp_path / "20260702_x.json")
+    meta, priors = fetch._local_meta(v)
+    assert meta["title"].startswith("一个主动接班")
+    assert meta["uploader"] == "杭商故事" and meta["duration"] == 504.0
+    assert priors == {"chapters": [], "heatmap": [], "danmaku_density": [], "page_boundaries": []}
+
+
+def test_local_meta_fallback_ffprobe(tmp_path, monkeypatch):
+    """_local_meta sidecar 缺失:ffprobe 时长、文件名 stem 作 title(fail-open)。"""
+    v = tmp_path / "raw.mp4"; v.write_bytes(b"x")
+    monkeypatch.setattr(fetch, "ffprobe_duration", lambda p: 123.4)
+    meta, _ = fetch._local_meta(v)
+    assert meta["title"] == "raw" and meta["duration"] == 123.4
+
+
+def test_local_proxy_cmd(tmp_path, monkeypatch):
+    """fetch_proxy 本地分支:ffmpeg scale=-2:360 -an 代理。"""
+    seen = {}
+    monkeypatch.setattr(fetch, "run", lambda cmd, timeout=1800: seen.update(cmd=[str(c) for c in cmd]))
+    v = tmp_path / "v.mp4"; v.write_bytes(b"x")
+    src = fetch.normalize_url(str(v))
+    work = tmp_path / ".work"; work.mkdir()
+    (work / "proxy.mp4").write_bytes(b"")
+    fetch.fetch_proxy(src, work, None, force=True)
+    assert "scale=-2:360" in " ".join(seen["cmd"]) and "-an" in seen["cmd"]

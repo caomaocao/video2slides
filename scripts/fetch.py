@@ -8,7 +8,7 @@ import sys
 import urllib.parse
 from pathlib import Path
 
-from common import emit, is_fresh, load_env_config, load_json, run, save_json, wp
+from common import emit, ffprobe_duration, is_fresh, load_env_config, load_json, run, save_json, wp
 from transcribe import resolve_asr_config
 
 
@@ -21,6 +21,11 @@ def _yt(vid: str) -> dict:
 
 
 def normalize_url(url: str) -> dict:
+    # 本地文件输入优先(spec §2):无跳转 URL,渲染用内嵌播放器;必走 ASR/--transcript
+    p = Path(url).expanduser()
+    if p.exists() and p.is_file():
+        return {"platform": "local", "vid": p.stem, "part": None, "path": str(p.resolve()),
+                "canonical_url": None, "badge_url_template": None}
     u = urllib.parse.urlparse(url)
     q = urllib.parse.parse_qs(u.query)
     host = u.netloc.lower()
@@ -43,6 +48,24 @@ def normalize_url(url: str) -> dict:
             "badge_url_template": f"https://www.bilibili.com/video/{bv}?p={part}&t={{t}}",
         }
     raise ValueError(f"不支持的输入源: {url}")
+
+
+def _local_meta(path: Path) -> tuple[dict, dict]:
+    """本地元数据:同名 .json sidecar(视频号格式)优先,缺失 fail-open(ffprobe 时长/文件名标题)。"""
+    side = path.with_suffix(".json")
+    title, uploader, duration = path.stem, None, None
+    if side.exists():
+        try:
+            d = json.loads(side.read_text(encoding="utf-8"))
+            title = d.get("title") or title
+            uploader = d.get("nickname")
+            duration = float((d.get("media") or {}).get("duration") or 0) or None
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass                                       # sidecar 损坏按缺失处理
+    if duration is None:
+        duration = ffprobe_duration(path)
+    meta = {"title": title, "duration": duration, "language": None, "uploader": uploader}
+    return meta, {"chapters": [], "heatmap": [], "danmaku_density": [], "page_boundaries": []}
 
 
 def parse_metadata(info: dict) -> tuple[dict, dict]:
@@ -107,6 +130,13 @@ def fetch_meta(source: dict, work: Path, cookies: str | None, force: bool) -> di
     meta_p, priors_p, raw_p = wp(work, "meta"), wp(work, "priors"), wp(work, "raw_info")
     if not force and is_fresh(meta_p) and is_fresh(priors_p):
         return load_json(meta_p)
+    # 本地文件分支:不调 yt-dlp,不落 raw_info
+    if source["platform"] == "local":
+        meta, priors = _local_meta(Path(source["path"]))
+        meta["source"] = source
+        save_json(meta_p, meta)
+        save_json(priors_p, priors)
+        return meta
     cmd = _ytdlp_base(source, cookies)
     # --write-subs/--write-auto-subs 触发 yt-dlp 的惰性字幕提取门:B 站等提取器
     # 仅在这些参数存在时才调字幕 API,裸 -J 会得到空 subtitles(2026-07-11 验收 #11 实测);
@@ -131,10 +161,16 @@ def fetch_proxy(source: dict, work: Path, cookies: str | None, force: bool) -> P
     proxy = wp(work, "proxy")
     if not force and is_fresh(proxy):
         return proxy
-    cmd = _ytdlp_base(source, cookies)
-    cmd[-1:-1] = ["-f", proxy_format_selector(), "--remux-video", "mp4",
-                  "-o", str(work / "proxy.%(ext)s")]
-    run(cmd, timeout=1800)
+    # 本地文件分支:ffmpeg 降采样代理
+    if source["platform"] == "local":
+        run(["ffmpeg", "-y", "-v", "error", "-i", source["path"],
+             "-vf", "scale=-2:360", "-an", "-c:v", "libx264", "-preset", "veryfast",
+             "-crf", "28", str(proxy)], timeout=3600)
+    else:
+        cmd = _ytdlp_base(source, cookies)
+        cmd[-1:-1] = ["-f", proxy_format_selector(), "--remux-video", "mp4",
+                      "-o", str(work / "proxy.%(ext)s")]
+        run(cmd, timeout=1800)
     if not proxy.exists():
         raise RuntimeError(f"代理流未产出: {proxy}")
     return proxy
@@ -150,6 +186,9 @@ def subs_download_cmd(source: dict, track: tuple[str, str], work: Path, cookies:
 
 
 def fetch_subs(source: dict, work: Path, cookies: str | None, force: bool):
+    # 本地无字幕源,必走 ASR/--transcript(spec §2)
+    if source["platform"] == "local":
+        return None
     meta_p = wp(work, "meta")
     meta = load_json(meta_p)
     subs_dir = wp(work, "subs_dir")
