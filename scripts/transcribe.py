@@ -109,15 +109,19 @@ _SIL_RE = re.compile(r"silence_(start|end): ([\d.]+)")
 
 
 def _http_post(url: str, headers: dict, body: bytes, timeout: int = 300) -> dict:
-    """全后端共用 HTTP 座(测试 monkeypatch 点);非 2xx/网络错误 → RuntimeError。"""
+    """全后端共用 HTTP 座(测试 monkeypatch 点);非 2xx/网络/非 JSON 响应 → RuntimeError。"""
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read().decode("utf-8"))
+            raw = r.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"ASR HTTP {e.code}: {e.read()[:200]!r}") from e
     except urllib.error.URLError as e:
         raise RuntimeError(f"ASR 网络错误: {e.reason}") from e
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"ASR 响应非 JSON(端点配置错误?): {raw[:200]!r}") from e
 
 
 def _with_retry(fn):
@@ -161,11 +165,17 @@ def _asr_transcriptions(chunks: list[tuple[Path, float, float]], cfg: dict) -> t
             continue
         raw = resp.get("segments") or ([{"start": 0.0, "end": t1 - t0, "text": resp["text"]}]
                                        if resp.get("text") else [])
-        for s in raw:
-            txt = (s.get("text") or "").strip()
-            if txt:
-                segments.append({"t_start": t0 + float(s["start"]),
-                                 "t_end": t0 + float(s["end"]), "text": txt})
+        block: list[dict] = []                 # 先攒本块,畸形 segment 整块作废,不污染已收段
+        try:
+            for s in raw:
+                txt = (s.get("text") or "").strip()
+                if txt:
+                    block.append({"t_start": t0 + float(s["start"]),
+                                  "t_end": t0 + float(s["end"]), "text": txt})
+        except (KeyError, TypeError, ValueError):
+            failed += 1
+            continue
+        segments.extend(block)
     return segments, failed
 
 

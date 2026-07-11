@@ -159,3 +159,29 @@ def test_asr_transcriptions_retry_then_skip(tmp_path, monkeypatch):
     c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"x")
     segs, failed = transcribe._asr_transcriptions([(c1, 0.0, 45.0)], _cfg_transcriptions())
     assert failed == 1 and segs == [] and calls["n"] == 2      # 重试 1 次后跳过
+
+
+def test_http_post_invalid_json_becomes_runtime_error(monkeypatch):
+    """2xx + 非法 JSON(端点配错)必须归一为 RuntimeError,走块失败隔离而非整批崩溃。"""
+    import io, urllib.request
+
+    class FakeResp(io.BytesIO):
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda req, timeout=300: FakeResp(b"<html>gateway</html>"))
+    with pytest.raises(RuntimeError, match="非 JSON"):
+        transcribe._http_post("https://x/v1/audio/transcriptions", {}, b"")
+
+
+def test_asr_transcriptions_malformed_segment_counts_failed(tmp_path, monkeypatch):
+    """segment 缺 start/end 只作废该块(failed+1),不崩整批、不留半截段。"""
+    bad = {"segments": [{"start": 0.0, "end": 1.0, "text": "好段"},
+                        {"start": None, "end": 2.0, "text": "坏段"}]}
+    monkeypatch.setattr(transcribe, "_http_post", lambda *a, **k: bad)
+    c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"x")
+    segs, failed = transcribe._asr_transcriptions([(c1, 0.0, 45.0)], {
+        "backend": "groq", "family": "transcriptions", "base": "https://b/v1",
+        "model": "m", "key": "k", "language": "auto", "asr_options": False})
+    assert failed == 1 and segs == []
