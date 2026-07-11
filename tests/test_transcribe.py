@@ -278,3 +278,13 @@ def test_asr_funasr_missing_venv(tmp_path):
            "language": "zh"}
     with pytest.raises(RuntimeError, match="FUNASR_VENV"):
         transcribe._asr_funasr(tmp_path / "a.mp3", cfg)
+
+
+def test_asr_funasr_nonjson_stdout_is_diagnosable(tmp_path, monkeypatch):
+    """runner stdout 被依赖噪声污染时,报可诊断的 RuntimeError 而非裸 JSONDecodeError。"""
+    venv = tmp_path / "venv" / "bin"; venv.mkdir(parents=True)
+    (venv / "python").write_text("")
+    monkeypatch.setattr(transcribe, "run", lambda cmd, timeout=7200: "Downloading model...\n")
+    with pytest.raises(RuntimeError, match="非 JSON"):
+        transcribe._asr_funasr(tmp_path / "a.mp3",
+                               {"funasr_venv": str(tmp_path / "venv"), "language": "zh"})

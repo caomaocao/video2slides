@@ -221,7 +221,10 @@ def _asr_funasr(audio: Path, cfg: dict) -> list[dict]:
         raise RuntimeError(f"FUNASR_VENV 无效(缺 {venv_py})——配置 FUNASR_VENV 或改用 mimo/qwen 等 API 后端")
     runner = Path(__file__).parent / "funasr_runner.py"
     out = run([venv_py, runner, audio, "--lang", cfg.get("language", "zh")], timeout=7200)
-    return json.loads(out)
+    try:
+        return json.loads(out)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"funasr runner 输出非 JSON(依赖库 stdout 噪声?): {out[:200]!r}") from e
 
 
 def _parse_silences(stderr_text: str) -> list[float]:
