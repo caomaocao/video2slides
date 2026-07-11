@@ -33,6 +33,7 @@
 | 24 | [B BV1Wa4y1j7e3](https://www.bilibili.com/video/BV1Wa4y1j7e3) | 腾讯会议录屏(蓝江讲座) | **115:03** | **无 ai 轨 → ASR(中文)** | 0 | danmaku | 会议录屏(1920×948) | **会议记录** |
 | 25 | [B BV11S59zUEH2](https://www.bilibili.com/video/BV11S59zUEH2) | 5min 小组会议英文原声 / 听力酵父 | 5:17 | ai-zh(**需 cookie**,英文原声)+ 弹幕 | 0 | danmaku | 会议录屏(短) | **会议记录** |
 | 26 | [B BV1hezaY7EKq](https://www.bilibili.com/video/BV1hezaY7EKq) | 1128 会议录屏 | **41:30** | ai-zh(**需 cookie**)+ 弹幕 | 0 | danmaku | slide-driven(共享屏幕 PPT 为主,试产实判) | **演讲/汇报(试产纠偏,原判会议记录)** |
+| 27 | 本地 `live_show.mp4`(用户提供,无 sidecar) | 秀场直播实录 | 3:30 | 无字幕 → FunASR | 0 | 无 | talking-head(**竖屏 248×480**,直播 UI 常驻) | **直播实录/秀场(新类目,2026-07-12 建)** |
 
 本地文件补充:横屏,分辨率 1280×720 / 1024×576 / 960×544;**每个视频带同名 `.json` sidecar**(title、作者、时长、宽高、封面等)——`fetch.py` 本地路径应优先读取 sidecar 作 metadata,无需要求用户手填标题。
 
@@ -106,6 +107,15 @@
 - **YouTube 切片主验收:#13(Token 讲解)**——slide-driven + 手动中文字幕 + 5 chapters + heatmap,10:31 体量适中,先验全齐
 - **B 站切片主验收:#11 p02(尚硅谷 NLP 课程概述)**——slide-driven + ai-zh 字幕,11:59,顺带验证分 P 规则与 cookie 流程
 - 切片后的首批回归:#6(screen-recording + chapters + clip 主力)、#3(cinematic + 先验最全)、#1(slide-driven 无字幕 + FunASR,验 ASR 路径)
+
+## live show 新类型试产(2026-07-12,#27)
+
+- **deck**:`~/Desktop/video2slides/liveshow_20260712/index.html`,8 页,Split Pastel(新类目「直播实录/秀场」暂与 vlog/生活 同映射,理由:同属镜头前非结构化娱乐向内容;SKILL.md 已建类目)
+- **数值判据盲区再实证**:curve_stats(plateau_ratio 0.942 / spikes_per_min 0.57)完全落在 slide-driven 数值带内,目验实为 talking-head+弹幕/礼物 UI——「探针 sheet 目验定谳」规则已写入 SKILL.md 步骤 3
+- **FunASR 噪声上限**:清唱/多人声交叠段基本不可读(66 段/85s 转完),quote 保原文照录;秀场类大纲主要靠可读段+画面,属该类型固有约束
+- **finalize 语义边界**:源仅 248×480 时定稿与代理同分辨率,6/6 成功 0 降级但无增益——低清源版面策略为小图点缀、不硬放大
+- **移交 frontend-slides**:`.slide` 派生类上覆盖 `position` 会击穿固定舞台堆叠(与已知 `display` 坑同源,该 skill 文档仅警示了 display)——待移交其坑位清单
+- **QA 缺口**:claude-in-chrome 拒绝 `file://` 导航,本地弹层「真实双击打开可跳播」未能自动化闭环(http.server 代测被跨源策略假阳性拦截),需真人双击复验
 
 ## 待办
 
