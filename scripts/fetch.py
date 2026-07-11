@@ -99,7 +99,10 @@ def fetch_meta(source: dict, work: Path, cookies: str | None, force: bool) -> di
     if not force and is_fresh(meta_p) and is_fresh(priors_p):
         return load_json(meta_p)
     cmd = _ytdlp_base(source, cookies)
-    cmd[-1:-1] = ["-J", "--skip-download"]
+    # --write-subs/--write-auto-subs 触发 yt-dlp 的惰性字幕提取门:B 站等提取器
+    # 仅在这些参数存在时才调字幕 API,裸 -J 会得到空 subtitles(2026-07-11 验收 #11 实测);
+    # -J 隐含 simulate,不会真正下载字幕文件,对 YouTube 无副作用
+    cmd[-1:-1] = ["-J", "--skip-download", "--write-subs", "--write-auto-subs"]
     info = json.loads(run(cmd, timeout=180))
     info.pop("formats", None)  # 体积大且无下游消费者,裁掉再落盘
     save_json(raw_p, info)

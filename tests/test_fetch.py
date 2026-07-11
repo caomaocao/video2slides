@@ -99,3 +99,20 @@ def test_fetch_subs_picks_matching_lang_file(tmp_path, monkeypatch):
     src = fetch.normalize_url("https://www.youtube.com/watch?v=QNiaoD5RxPA")
     sub = fetch.fetch_subs(src, work, None, force=True)
     assert sub["lang"] == "zh-Hans" and sub["path"].endswith("sub.zh-Hans.vtt")
+
+
+def test_fetch_meta_requests_lazy_subtitle_extraction(tmp_path, monkeypatch):
+    """B 站字幕在 yt-dlp 里走惰性提取门(仅 --write-subs 等参数触发),
+    -J 必须携带,否则 subtitles 恒空(2026-07-11 验收 #11 实测)。"""
+    import json as _json
+    seen = {}
+
+    def fake_run(cmd, timeout=180):
+        seen["cmd"] = [str(c) for c in cmd]
+        return _json.dumps({"title": "t", "duration": 1.0,
+                            "subtitles": {}, "automatic_captions": {}})
+
+    monkeypatch.setattr(fetch, "run", fake_run)
+    src = fetch.normalize_url("https://www.bilibili.com/video/BV1k44LzPEhU?p=2")
+    fetch.fetch_meta(src, tmp_path, None, force=True)
+    assert "--write-subs" in seen["cmd"] and "--write-auto-subs" in seen["cmd"]
