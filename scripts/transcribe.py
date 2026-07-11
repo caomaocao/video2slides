@@ -11,6 +11,42 @@ from common import emit, is_fresh, load_json, save_json, wp
 _TS = re.compile(r"(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})")
 _TAG = re.compile(r"<[^>]+>")
 
+# ASR 预设表(切片2设计 §2):ASR_API_BASE/ASR_MODEL 可覆盖任意预设;asr_options 仅 mimo 需要
+PRESETS = {
+    "groq":   {"family": "transcriptions", "base": "https://api.groq.com/openai/v1",
+               "model": "whisper-large-v3", "key_env": "GROQ_API_KEY", "asr_options": False},
+    "openai": {"family": "transcriptions", "base": "https://api.openai.com/v1",
+               "model": "whisper-1", "key_env": "OPENAI_API_KEY", "asr_options": False},
+    "mimo":   {"family": "chat", "base": "https://api.xiaomimimo.com/v1",
+               "model": "mimo-v2.5-asr", "key_env": "MIMO_API_KEY", "asr_options": True},
+    "qwen":   {"family": "chat", "base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+               "model": "qwen3-asr-flash", "key_env": "DASHSCOPE_API_KEY", "asr_options": False},
+    "api":    {"family": "transcriptions", "base": None, "model": None,
+               "key_env": "ASR_API_KEY", "asr_options": False},
+}
+
+
+def resolve_asr_config(env: dict) -> dict:
+    """由 env(load_env_config 产物)解析 ASR 配置;配置无效抛 ValueError(带修复指引)。"""
+    backend = (env.get("ASR_BACKEND") or "funasr").strip().lower()
+    if backend == "none":
+        return {"backend": "none", "family": "none", "base": None, "model": None,
+                "key": None, "funasr_venv": None, "language": "auto", "asr_options": False}
+    if backend == "funasr":
+        return {"backend": "funasr", "family": "funasr", "base": None, "model": None, "key": None,
+                "funasr_venv": env.get("FUNASR_VENV", "~/.venvs/funasr"),
+                "language": env.get("ASR_LANGUAGE", "auto"), "asr_options": False}
+    if backend not in PRESETS:
+        raise ValueError(f"未知 ASR_BACKEND: {backend}(可选 funasr|groq|openai|mimo|qwen|api|none)")
+    p = PRESETS[backend]
+    base = env.get("ASR_API_BASE") or p["base"]
+    model = env.get("ASR_MODEL") or p["model"]
+    if not base or not model:
+        raise ValueError("ASR_BACKEND=api 需要 ASR_API_BASE 与 ASR_MODEL(自定义三元组,spec §10.1)")
+    return {"backend": backend, "family": p["family"], "base": base.rstrip("/"), "model": model,
+            "key": env.get(p["key_env"], ""), "funasr_venv": None,
+            "language": env.get("ASR_LANGUAGE", "auto"), "asr_options": p["asr_options"]}
+
 
 def _sec(ts: str) -> float:
     h, m, s, ms = _TS.match(ts).groups()

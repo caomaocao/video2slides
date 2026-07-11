@@ -55,3 +55,28 @@ def test_cli_writes_transcript(tmp_path):
     t = common.load_json(common.wp(work, "transcript"))
     assert t["source"] == "manual:zh-Hans"
     assert [s["id"] for s in t["segments"]] == list(range(len(t["segments"])))
+
+
+def test_resolve_default_funasr():
+    cfg = transcribe.resolve_asr_config({"FUNASR_VENV": "~/.venvs/funasr"})
+    assert cfg["backend"] == "funasr" and cfg["family"] == "funasr"
+    assert cfg["funasr_venv"] == "~/.venvs/funasr"
+
+
+def test_resolve_presets_and_override():
+    cfg = transcribe.resolve_asr_config({"ASR_BACKEND": "qwen", "DASHSCOPE_API_KEY": "sk-x"})
+    assert cfg["family"] == "chat" and cfg["model"] == "qwen3-asr-flash"
+    assert cfg["base"].startswith("https://dashscope.aliyuncs.com")
+    cfg2 = transcribe.resolve_asr_config({"ASR_BACKEND": "qwen", "DASHSCOPE_API_KEY": "sk-x",
+                                          "ASR_API_BASE": "https://my.proxy/v1", "ASR_MODEL": "m2"})
+    assert cfg2["base"] == "https://my.proxy/v1" and cfg2["model"] == "m2"   # 覆盖任意预设
+    cfg3 = transcribe.resolve_asr_config({"ASR_BACKEND": "mimo", "MIMO_API_KEY": "sk-m"})
+    assert cfg3["family"] == "chat" and cfg3["asr_options"] is True
+
+
+def test_resolve_api_requires_triple_and_unknown_backend():
+    with pytest.raises(ValueError, match="ASR_API_BASE"):
+        transcribe.resolve_asr_config({"ASR_BACKEND": "api", "ASR_API_KEY": "k"})
+    with pytest.raises(ValueError, match="未知"):
+        transcribe.resolve_asr_config({"ASR_BACKEND": "whisperx"})
+    assert transcribe.resolve_asr_config({"ASR_BACKEND": "none"})["family"] == "none"

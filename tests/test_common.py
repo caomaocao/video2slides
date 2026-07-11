@@ -39,3 +39,18 @@ def test_sig_diff_ratio_bounds():
     b = bytes([255, 255, 255] * 256)
     assert common.sig_diff_ratio(a, a) == 0.0
     assert common.sig_diff_ratio(a, b) == 1.0
+
+
+def test_load_env_config_file_and_environ_overlay(tmp_path, monkeypatch):
+    f = tmp_path / ".env"
+    f.write_text("# 注释\nASR_BACKEND=qwen\nDASHSCOPE_API_KEY=sk-file\n\n", encoding="utf-8")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-env")   # environ 优先
+    cfg = common.load_env_config(f)
+    assert cfg["ASR_BACKEND"] == "qwen"
+    assert cfg["DASHSCOPE_API_KEY"] == "sk-env"
+
+
+def test_load_env_config_missing_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASR_BACKEND", "none")
+    cfg = common.load_env_config(tmp_path / "nope.env")
+    assert cfg["ASR_BACKEND"] == "none"

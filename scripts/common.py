@@ -85,3 +85,19 @@ def sig_diff_ratio(a: bytes, b: bytes, channel_thr: int = 24) -> float:
         if max(abs(a[i] - b[i]), abs(a[i + 1] - b[i + 1]), abs(a[i + 2] - b[i + 2])) > channel_thr
     )
     return changed / 256
+
+
+def load_env_config(path: Path | str | None = None) -> dict[str, str]:
+    """读 ~/.config/video2slides/.env(KEY=VALUE)并叠加 os.environ(environ 优先)。零 pip 自写解析。"""
+    p = Path(path) if path else Path.home() / ".config" / "video2slides" / ".env"
+    cfg: dict[str, str] = {}
+    if p.exists():
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            cfg[k.strip()] = v.strip()
+    for k, v in os.environ.items():
+        cfg[k] = v
+    return cfg
