@@ -13,8 +13,8 @@
 | 4 | [YT 6Hbd25qDuGs](https://www.youtube.com/watch?v=6Hbd25qDuGs) | 王局拍案 / 王志安 | **36:53** | 手动 en / zh-Hans / zh-Hant | 0 | 无 | talking-head | 演讲/解读 |
 | 5 | [B BV1zgVA6gE3x](https://www.bilibili.com/video/BV1zgVA6gE3x) | 法拉利纯电 Luce 评测 / 高转青年-栗子 | 12:46 | ai-zh(**需 cookie**)+ 弹幕;另有 ai-en/es/ar | 0 | danmaku | cinematic + 实拍演示 | 评测/对比 |
 | 6 | [B BV12TN56aEk4](https://www.bilibili.com/video/BV12TN56aEk4) | GPT-5.6 Sol 实测 / 程序员阿江-Relakkes | **5:54** | ai-zh(**需 cookie**)+ 弹幕 | **9** | danmaku | screen-recording(+头像画中画) | 评测 |
-| 7 | [B BV1EM7t6pEcu](https://www.bilibili.com/video/BV1EM7t6pEcu) | 金沙扩建(The B1M 搬运)/ 黑纹白斑马 | 12:17 | ai-zh 待确认 + 弹幕 | 0 | danmaku | cinematic | 纪录片 |
-| 8 | [B BV1BZLQ6JENm](https://www.bilibili.com/video/BV1BZLQ6JENm) | 世界杯现场 / 杰克小兔 | 18:13 | ai-zh 待确认 + 弹幕 | **5** | danmaku | cinematic(游记) | 游记 |
+| 7 | [B BV1EM7t6pEcu](https://www.bilibili.com/video/BV1EM7t6pEcu) | 金沙扩建(The B1M 搬运)/ 黑纹白斑马 | 12:17 | ai-zh(**需 cookie**,已确认)+ 弹幕 | 0 | danmaku | cinematic | 纪录片 |
+| 8 | [B BV1BZLQ6JENm](https://www.bilibili.com/video/BV1BZLQ6JENm) | 世界杯现场 / 杰克小兔 | 18:13 | **无 ai 轨(已确认)→ ASR** | **5** | danmaku | cinematic(游记) | 游记 |
 | 9 | 本地 ×3:`…/local-channel/videos/` | 杭商故事(视频号短视频) | 8:24 / 9:45 / 8:32 | 无 → ASR 或 `--transcript` | — | — | talking-head/实拍(待探针) | 资讯/人物故事 |
 | 10 | 本地 ×1:`…/local-channel/lives/` | 视频号直播回放(标题空) | **41:11** | 无 → ASR | — | — | talking-head(待探针) | 访谈/直播 |
 | 11 | [B BV1k44LzPEhU](https://www.bilibili.com/video/BV1k44LzPEhU)(**187P 分 P 合集**,推荐 p02) | 尚硅谷 NLP 零基础教程 | p01 4:37 / p02 11:59 | ai-zh(**需 cookie**)+ 弹幕 | 每 P 无 | danmaku | **screen-recording(讲义文档录屏,验收实测修正)** | 课程 |
@@ -77,6 +77,17 @@
 | 低清源(640×360,代理流≈原流) | **#17** |
 | 会议记录体裁(短/中/超长无字幕梯度) | **#25(5min)、#26(41min)、#24(115min·ASR)** |
 
+## 批量试产结论(2026-07-11,8 源并行)
+
+字幕就绪且 ≤30min 的 8 源由 subagent 各自照 SKILL.md 全流程试产(粒度统一中档):7 份 deck 出品、1 份按规矩止于取流(#8 无字幕轨)。验证了 SKILL.md 可被非作者 Claude 独立执行。逐片发现:
+
+1. **whiteboard 末帧规则缺失的实锤(#17)**:三页板书全拍在"写到一半"(Mean 公式无结果、排序排一半、mode 刚起笔)——spec §8.1 末帧规则进下切片优先级
+2. **探针数值判据不可独立成立(#3/#6/#18)**:三个非 slide 视频的曲线指标全部落进 slide-driven 判据区间(plateau 0.98±、尖峰 1.9–5.7/min),全靠 probe sheet 目验纠正——§14 开放项 1 需加入构图特征,数值只做初筛
+3. **字幕轨选择两处真 bug(已修 ade8d0e)**:en-US 视频 manual 层无 en 时兜底取字典序第一(阿拉伯语);多语 ai 轨无视频语言时同样字典序兜底——改为语言匹配跨层优先 + ai-zh 启发式兜底
+4. **边缘密度打分的语义盲区(#18)**:插播的网页截图比黑板内容"边缘更忙"得分更高,需宿主目验纠偏——tesseract 装上会缓解
+5. **英音 × ai-zh 机翻噪声(#25)**:CloudBees→"云珠子"级别的错译进 transcript;英文内容应优先英文轨(修复 3 已顺带解决)
+6. **dedup 误伤延续到新形态**:黑板底(#17,3/5)、会议网格底(#25,1/8)——同底色共享背景的判据缺陷跨形态成立,P2 换判据的优先级再次上调
+
 ## 垂直切片验收(定稿)
 
 第二批已补齐「自带字幕 + slide-driven」组合,恢复 spec 原验收口径:
@@ -87,7 +98,7 @@
 
 ## 待办
 
-- [ ] #7、#8 的 ai-zh 轨逐个确认(推定存在,跑回归时顺带验证)
+- [x] ~~#7、#8 的 ai-zh 轨确认~~ → 批量试产落定:#7 有(312 段),#8 无(归 ASR 组)
 - [ ] B 站无 cookie 的 1080p 实际下载可用性验证(影响 §10.3 降级表述)
 - [x] ~~补充 slide-driven + 自带字幕用例~~ → 第二批已补(#11、#13、#14)
 - [x] ~~补充 访谈/whiteboard/真演讲/竖屏 用例~~ → 第三批已补(#16–#23)
