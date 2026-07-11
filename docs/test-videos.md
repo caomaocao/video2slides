@@ -17,7 +17,7 @@
 | 8 | [B BV1BZLQ6JENm](https://www.bilibili.com/video/BV1BZLQ6JENm) | 世界杯现场 / 杰克小兔 | 18:13 | ai-zh 待确认 + 弹幕 | **5** | danmaku | cinematic(游记) | 游记 |
 | 9 | 本地 ×3:`…/local-channel/videos/` | 杭商故事(视频号短视频) | 8:24 / 9:45 / 8:32 | 无 → ASR 或 `--transcript` | — | — | talking-head/实拍(待探针) | 资讯/人物故事 |
 | 10 | 本地 ×1:`…/local-channel/lives/` | 视频号直播回放(标题空) | **41:11** | 无 → ASR | — | — | talking-head(待探针) | 访谈/直播 |
-| 11 | [B BV1k44LzPEhU](https://www.bilibili.com/video/BV1k44LzPEhU)(**187P 分 P 合集**,推荐 p02) | 尚硅谷 NLP 零基础教程 | p01 4:37 / p02 11:59 | ai-zh(**需 cookie**)+ 弹幕 | 每 P 无 | danmaku | **slide-driven** | 课程 |
+| 11 | [B BV1k44LzPEhU](https://www.bilibili.com/video/BV1k44LzPEhU)(**187P 分 P 合集**,推荐 p02) | 尚硅谷 NLP 零基础教程 | p01 4:37 / p02 11:59 | ai-zh(**需 cookie**)+ 弹幕 | 每 P 无 | danmaku | **screen-recording(讲义文档录屏,验收实测修正)** | 课程 |
 | 12 | [YT TCH_1BHY58I](https://www.youtube.com/watch?v=TCH_1BHY58I) | Building makemore Part 2: MLP / Andrej Karpathy | **75:39** | 自动 en(+机翻 zh) | **19** | heatmap ✅ | screen-recording(coding) | 课程 |
 | 13 | [YT QNiaoD5RxPA](https://www.youtube.com/watch?v=QNiaoD5RxPA) | Token 到底是什么 / 马克的技术工作坊 | 10:31 | **手动 zh-Hans/zh-Hant** | **5** | heatmap ✅ | **slide-driven** | 课程/科普 |
 | 14 | [YT tamj4B7OALc](https://www.youtube.com/watch?v=tamj4B7OALc) | Lecture 01 Course Overview / Abhinav Maurya | **64:13** | 自动 en | 0 | 无 | **slide-driven** | 课程 |
