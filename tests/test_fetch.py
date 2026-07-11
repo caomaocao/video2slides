@@ -189,6 +189,22 @@ def test_normalize_url_local_path(tmp_path):
         fetch.normalize_url(str(tmp_path / "nope.mp4"))
 
 
+def test_normalize_url_pathological_path_raises_valueerror(tmp_path):
+    """超长文件名(ENAMETOOLONG)按非本地处理,仍走 ValueError 而非裸 OSError。"""
+    bad = str(tmp_path / ("超长" * 200 + ".mp4"))
+    with pytest.raises(ValueError):
+        fetch.normalize_url(bad)
+
+
+def test_local_meta_sidecar_non_dict_fail_open(tmp_path, monkeypatch):
+    """sidecar 为合法 JSON 但顶层非 dict(截断写入)→ fail-open 走 ffprobe/文件名。"""
+    v = tmp_path / "clip.mp4"; v.write_bytes(b"x")
+    (tmp_path / "clip.json").write_text("null", encoding="utf-8")
+    monkeypatch.setattr(fetch, "ffprobe_duration", lambda p: 66.0)
+    meta, _ = fetch._local_meta(v)
+    assert meta["title"] == "clip" and meta["duration"] == 66.0
+
+
 def test_local_meta_sidecar(tmp_path):
     """_local_meta 读 .json sidecar(视频号格式):title/nickname/duration 提取。"""
     import shutil

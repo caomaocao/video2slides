@@ -22,8 +22,12 @@ def _yt(vid: str) -> dict:
 
 def normalize_url(url: str) -> dict:
     # 本地文件输入优先(spec §2):无跳转 URL,渲染用内嵌播放器;必走 ASR/--transcript
-    p = Path(url).expanduser()
-    if p.exists() and p.is_file():
+    try:
+        p = Path(url).expanduser()
+        is_local = p.exists() and p.is_file()
+    except OSError:
+        is_local = False        # 病态路径(如 ENAMETOOLONG)按非本地处理,落到 URL 解析 → ValueError
+    if is_local:
         return {"platform": "local", "vid": p.stem, "part": None, "path": str(p.resolve()),
                 "canonical_url": None, "badge_url_template": None}
     u = urllib.parse.urlparse(url)
@@ -57,11 +61,13 @@ def _local_meta(path: Path) -> tuple[dict, dict]:
     if side.exists():
         try:
             d = json.loads(side.read_text(encoding="utf-8"))
+            if not isinstance(d, dict):
+                raise ValueError("sidecar 顶层非对象")
             title = d.get("title") or title
             uploader = d.get("nickname")
             duration = float((d.get("media") or {}).get("duration") or 0) or None
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass                                       # sidecar 损坏按缺失处理
+        except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
+            pass                                       # sidecar 损坏按缺失处理(fail-open)
     if duration is None:
         duration = ffprobe_duration(path)
     meta = {"title": title, "duration": duration, "language": None, "uploader": uploader}
