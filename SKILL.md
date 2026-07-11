@@ -6,7 +6,7 @@ description: Turn a YouTube/Bilibili video into a frontend-slides HTML deck. Sli
 # video2slides(垂直切片版)
 
 把在线视频转为「视频的可导航索引」:transcript → 大纲(带证据引用)→ 定向选帧 → frontend-slides HTML。
-本版覆盖:带字幕的 slide-driven 视频(YouTube / B 站单 P)。分析全程零打断,唯一交互点在渲染前。
+本版覆盖:带字幕或无字幕(ASR)的在线视频(YouTube / B 站单 P)与本地视频文件。分析全程零打断,唯一交互点在渲染前。
 
 > **运行方式**:以下命令均写作 `python scripts/xxx.py`(面向发布后的最终形态)。在本 repo 内开发/验收时,脚本跑在 `uv` 管理的 venv 里,请一律换成 `uv run python scripts/xxx.py`。
 > **路径约定**:`<OUT>`/`<W>` 全程使用绝对路径。脚本把 `--work` 传入值原样拼进 `proxy_path`/`final_path`/`candidates.json` 等制品;`storyboard.py validate` 用 `Path(proxy_path).exists()` 校验存在性——若中途换了相对路径或换了 cwd 调用,校验会因路径不匹配而误报失败。
@@ -20,16 +20,16 @@ description: Turn a YouTube/Bilibili video into a frontend-slides HTML deck. Sli
 
 ### 0. 预检
 `python scripts/setup.py`(不加 `--check`——该 flag 会静默掉所有提示文本,只留 exit code,缺二进制时看不到装什么;不加 flag 才会打印缺失清单与 `macOS: brew install ffmpeg yt-dlp` 提示)。
-exit 0 → 预检通过,继续;exit 2 → 按 stdout 提示装好 `ffmpeg`/`ffprobe`/`yt-dlp` 后重试;exit 4 → 仅缺 `tesseract`,提示信息可读但不阻塞,直接继续(文字密度打分自动降级为边缘密度代理)。
+exit 0 → 预检通过,继续;exit 2 → 按 stdout 提示装好 `ffmpeg`/`ffprobe`/`yt-dlp` 后重试;exit 3 → 所配 ASR 后端不可用:按 stdout 提示配置(`~/.config/video2slides/.env` 写 `ASR_BACKEND` 与对应 key,或 `FUNASR_VENV`);仅处理带字幕视频时可 `ASR_BACKEND=none` 继续。exit 4 → 仅缺 `tesseract`,提示信息可读但不阻塞,直接继续(文字密度打分自动降级为边缘密度代理)。
 
 ### 1. 取流
 `python scripts/fetch.py --url <URL> --work <OUT>/.work`(B 站加 `--cookies-from-browser chrome`)。
-exit 3 = 无字幕轨:告知用户该视频需 ASR(本版未含),停止。
+exit 3 = 无字幕轨且 ASR 不可用(none/配置无效)——告知用户配置后端或提供 `--transcript`,停止。无字幕轨但 ASR 可用时,fetch 会自动抽音频轨(`.work/audio.mp3`)并提示进 transcribe。本地文件:直接把文件路径当 `--url` 传入(sidecar 同名 `.json` 元数据自动读取;`--cookies-from-browser` 忽略)。
 输出目录 `<OUT>` 默认 `~/Desktop/video2slides/<title>_<YYYYMMDD>/`。
 
 ### 2. 转写与信号
 `python scripts/transcribe.py --work <W>` → `python scripts/signals.py --work <W>`。
-- transcribe.py:exit 1 = 字幕文件解析出 0 段(格式异常/内容为空),停止并告知用户;exit 3 = `meta.json` 无 `subtitle` 键(正常流程下 fetch.py exit 0 已保证该键存在,只在异常状态下触发,视为需回到步骤 1 重跑)。
+- transcribe.py:有字幕轨时,exit 1 = 字幕文件解析出 0 段(格式异常/内容为空),停止并告知用户;exit 0 = 成功。无字幕轨时 transcribe 走 ASR(后端由 .env 决定,默认 funasr):exit 3 = ASR 配置无效 / `ASR_BACKEND=none` / `.work/audio.mp3` 缺失 / 后端调用失败(按 stdout 定位具体原因);exit 1 = ASR 产出 0 段(全部块失败或音频异常),不落盘;exit 0 = 成功。funasr 本地转写约 0.1–0.3× 实时,长视频耐心等待;mimo/qwen 为 45s 切块逐块调用,transcript 的时间戳为块级粒度(45s 级)、`source` 标 `asr:<backend>`。**ASR/机翻文本有噪声**:evidence quote 仍保原文一字不差,专有名词错译可在 slide 正文用小注澄清(参考 meeting5min 成品)。失败块会在 stdout 汇总(transcript 留缺口)。
 - signals.py:exit 1 = scene-score 遍历失败(如单帧/静态视频)——spec §11 描述的降级路径(uniform 抽帧兜底)本切片未实现,遇到即直接停止并告知用户。
 记下 stdout 的 `curve_stats`(含 `plateau_ratio`、`spikes_per_min`,下一步要用)。
 
@@ -77,9 +77,11 @@ Purpose 由轴 B 推断、Content 恒为 ready、Density 默认 high-density/rea
   - screen-recording / 文档录屏 / slide-driven / whiteboard:**帧是信息主体**——截图里的文字必须肉眼可读,帧卡片占页面主导面积(≥60%,全宽大图+紧凑文字条,或图 70% 文 30%),UI 截图用 contain/原比例完整呈现,禁止 cover 裁切
   - cinematic / 游记 / 实拍:帧承载氛围,图文对半或图稍大均可,cover 裁切可接受
   - talking-head / 会议网格:帧纯装饰(画面恒同),小图/拍立得式点缀即可,文字为主体
+  - **竖屏帧(高>宽)**:禁止 cover 成横图——原比例居中,两侧留白或毛玻璃衬底;信息主体类(录屏/演示)高度贴满 1080 减留白;可双帧并排利用横向空间
 - `final_path` 的两种取值,HTML 里引用方式不同:
   - 正常定稿:`frames.py --finalize` 写到 `<OUT>/assets/final_<node_id>_<t:.1f>.jpg`(如 `final_2.1_431.2.jpg`),HTML 用相对 `index.html` 的 `assets/<文件名>` 引用即可
   - 降级(`quality_limited: true`,高清直链两次都取不到):`final_path` 原样等于代理帧 `proxy_path`,即 `<OUT>/.work/frames_proxy/f_xxxxx.jpg`——**不在** `assets/` 下。渲染前把这些文件也拷贝进 `assets/`(保持自包含,便于之后整目录分享/部署),再按拷贝后的相对路径引用,不要直接从 `.work/` 里引
+- **本地文件(platform=local)**:无跳转 URL(badge_url_template 为 null)——时间戳角标改为打开内嵌播放器弹层:`<video src="file://<原始绝对路径>">` + JS 设 `currentTime` 跳播,弹层内显示源文件路径,SKILL 交付说明须注明「移动/删除原视频文件会使跳转失效」。deck 不拷贝视频文件(可达数百 MB)。
 - 产出 `<OUT>/index.html`
 交付时告知所用风格;用户可要求换风格/换粒度重渲染——只重复 6–8 步,零重跑分析。
 
