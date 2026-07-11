@@ -1,7 +1,7 @@
 """预检(垂直切片最小版):二进制存在性 + 版本门槛。--json 结构化 / --check 静默。
 
-exit 0 可运行;2 缺 ffmpeg/ffprobe/yt-dlp;4 仅缺 tesseract(自动降级,不阻塞)。
-exit 3(所配 ASR 后端不可用)属 ASR 三家族范围,切片不实现——见 spec §10.2。
+exit 0 可运行;2 缺 ffmpeg/ffprobe/yt-dlp;3 所配 ASR 后端不可用(按 ASR_BACKEND 校验
+key/venv,可 ASR_BACKEND=none 继续);4 仅缺 tesseract(自动降级,不阻塞)。
 """
 from __future__ import annotations
 
@@ -56,8 +56,13 @@ def check_asr() -> tuple[bool, str]:
     if cfg["family"] == "funasr":
         py = Path(cfg["funasr_venv"]).expanduser() / "bin" / "python"
         if not py.exists():
-            return False, f"FUNASR_VENV 无效(缺 {py})"
-        r = subprocess.run([str(py), "-c", "import funasr"], capture_output=True, timeout=60)
+            return False, f"FUNASR_VENV 无效(缺 {py})——配置 FUNASR_VENV 或改用 mimo/qwen 等 API 后端"
+        try:
+            r = subprocess.run([str(py), "-c", "import funasr"], capture_output=True, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            # 兜底:python 无执行位(PermissionError)/import 挂起(TimeoutExpired)等
+            # 均 fail-closed 返回,不击穿 --json 模式的纯 JSON 输出契约
+            return False, f"funasr venv 无法执行({py})——检查 FUNASR_VENV 或改用 mimo/qwen 等 API 后端"
         return (r.returncode == 0,
                 "funasr 可用" if r.returncode == 0 else "funasr 导入失败(venv 内未安装?)")
     if not cfg["key"]:

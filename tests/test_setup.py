@@ -67,3 +67,29 @@ def test_main_exit3_when_asr_unavailable(monkeypatch):
     monkeypatch.setattr(setup_mod, "probe", lambda: fake)
     monkeypatch.setattr(setup_mod, "check_asr", lambda: (False, "缺 DASHSCOPE_API_KEY"))
     assert setup_mod.main(["--check"]) == 3
+
+
+def test_check_asr_subprocess_failure_fail_closed(monkeypatch, tmp_path):
+    """venv python 存在但不可执行(空文件)→ 返回 (False, 指引) 而非 PermissionError 击穿。"""
+    venv = tmp_path / "venv" / "bin"; venv.mkdir(parents=True)
+    (venv / "python").write_text("")          # 无执行位
+    monkeypatch.setattr(setup_mod, "resolve_asr_config",
+                        lambda env: {"family": "funasr", "backend": "funasr",
+                                     "funasr_venv": str(tmp_path / "venv")})
+    ok, msg = setup_mod.check_asr()
+    assert not ok and "无法执行" in msg
+
+
+def test_json_pure_on_exit3(monkeypatch, capsys):
+    """--json + exit3 路径:stdout 整体纯 JSON 且含 asr 节。"""
+    import json
+    fake = {"ffmpeg": {"found": True, "version": [8, 0], "blurdetect": True},
+            "ffprobe": {"found": True, "version": [8, 0]},
+            "yt_dlp": {"found": True, "version": [2026, 7]},
+            "tesseract": {"found": True}}
+    monkeypatch.setattr(setup_mod, "probe", lambda: fake)
+    monkeypatch.setattr(setup_mod, "check_asr", lambda: (False, "缺 DASHSCOPE_API_KEY"))
+    rc = setup_mod.main(["--json"])
+    assert rc == 3
+    data = json.loads(capsys.readouterr().out)
+    assert data["asr"] == {"ok": False, "detail": "缺 DASHSCOPE_API_KEY"}
