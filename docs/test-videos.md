@@ -1,6 +1,6 @@
-# 测试视频集(v2)
+# 测试视频集(v3)
 
-> 来源:用户提供,2026-07-10(第一批 10 源 + 第二批 5 源)。在线视频元数据已用 yt-dlp 2026.07.04 逐个核实(字幕轨/时长/chapters/heatmap);本地文件已用 ffprobe 核实。
+> 来源:用户提供,2026-07-10 第一批 10 源 + 第二批 5 源;2026-07-11 第三批 8 源(补形态/体裁缺口)。在线视频元数据已用 yt-dlp 2026.07.04 逐个核实(字幕轨/时长/chapters/heatmap);本地文件已用 ffprobe 核实。
 > 用途:垂直切片验收 + 各管线路径的回归用例。spec §13 的"每形态 5–10 个标注视频"回归集以此为起点扩充。
 
 ## 清单(已核实)
@@ -22,6 +22,14 @@
 | 13 | [YT QNiaoD5RxPA](https://www.youtube.com/watch?v=QNiaoD5RxPA) | Token 到底是什么 / 马克的技术工作坊 | 10:31 | **手动 zh-Hans/zh-Hant** | **5** | heatmap ✅ | **slide-driven** | 课程/科普 |
 | 14 | [YT tamj4B7OALc](https://www.youtube.com/watch?v=tamj4B7OALc) | Lecture 01 Course Overview / Abhinav Maurya | **64:13** | 自动 en | 0 | 无 | **slide-driven** | 课程 |
 | 15 | [B BV1VC7g6vE9f](https://www.bilibili.com/video/BV1VC7g6vE9f) | Vibe Coding 是什么 / 隔壁的程序员老王 | 12:26 | **无 ai-zh(实测,含 cookie)** → ASR | 0 | danmaku | slide/talking 混合(待探针) | 科普/评测 |
+| 16 | [B BV13AmpBiE2o](https://www.bilibili.com/video/BV13AmpBiE2o) | 朱啸虎访谈(第三次)/ 张小珺商业访谈录 | **46:26** | ai-zh(**需 cookie**;另有 ai-en/ja/es/pt/ar 共 6 语)+ 弹幕 | 0 | danmaku | **talking-head(双人 A-B-A 切换)** | 访谈/播客 |
+| 17 | [B BV1DK4y1n7J8](https://www.bilibili.com/video/BV1DK4y1n7J8)(**85P 分 P**,推荐 p01) | 可汗学院统计学 | p01 4:02 | ai-en/ai-zh(**需 cookie**)+ 弹幕 | 每 P 无 | danmaku | **whiteboard(手写,640×360 低清源)** | 课程 |
+| 18 | [B BV1YG411p7BA](https://www.bilibili.com/video/BV1YG411p7BA) | 哈希表/Leetcode 242 / 代码随想录 | 13:23 | ai-zh(**需 cookie**)+ 弹幕 | 0 | danmaku | **whiteboard/画板讲题** | 课程 |
+| 19 | [B BV1a5QRYCE5j](https://www.bilibili.com/video/BV1a5QRYCE5j) | 黄仁勋 GTC 2025 主题演讲 / NVIDIA | **131:47** | ai-zh(**需 cookie**)+ 弹幕 | 0 | danmaku | **分段(开场实拍→keynote slide)**,4K 源 | 演讲/分享 |
+| 20 | [B BV1xa411T7f4](https://www.bilibili.com/video/BV1xa411T7f4) | WWDC 2010(iPhone4 发布会) | **112:24** | **无 ai 轨 → ASR(英文)**;画面烧录中英字幕 | 0 | danmaku | **分段(keynote slide + demo)** | 演讲/分享 |
+| 21 | [B BV1j3jd6cEtp](https://www.bilibili.com/video/BV1j3jd6cEtp) | 红箭9 反坦克导弹 / 杨叔洞察 | 2:44 | 无 ai 轨 → ASR | 0 | danmaku | **竖屏 1920×3414** 实拍解说 | 资讯/解读 |
+| 22 | [B BV1eXqMBzEDD](https://www.bilibili.com/video/BV1eXqMBzEDD) | Dota 辉耀英雄盘点 / Dota情报站 | 2:56 | 无 ai 轨 → ASR | 0 | danmaku | **竖屏 1080×1920** 游戏录屏 | 评测/盘点 |
+| 23 | [YT shorts f7bJsbxoLg8](https://www.youtube.com/shorts/f7bJsbxoLg8) | 摇杆开关改造 Short | **0:18** | 无字幕 → ASR | 0 | 无 | **竖屏 1080×1440,极短** | vlog/生活 |
 
 本地文件补充:横屏,分辨率 1280×720 / 1024×576 / 960×544;**每个视频带同名 `.json` sidecar**(title、作者、时长、宽高、封面等)——`fetch.py` 本地路径应优先读取 sidecar 作 metadata,无需要求用户手填标题。
 
@@ -33,6 +41,8 @@
 4. **烧录字幕(#1、#2)是信号层考验点**:底部字幕条逐句变化给 scene-score 叠加持续小抖动,可能把 slide-driven/cinematic 误判成 screen-recording。候选对策:探针阶段 crop 掉底部 ~15% 再算 score;或探针 contact sheet 仲裁时目视纠偏
 5. **B 站 AI 字幕非全覆盖**:#15 即便带 cookie 也只有弹幕轨——存在无字幕轨的 B 站视频,ASR 需求独立于 cookie 问题存在
 6. **分 P 合集必须带 `?p=n` 定 P**:#11 是 187P 合集,不带 p 参数时 yt-dlp 逐 P 枚举 metadata(实测直接超时)。`fetch.py` 实现要点:先归一化 URL(缺省补 `p=1`)再调 yt-dlp
+7. **B 站 AI 字幕多语覆盖不均**:#16 有 6 语种(ai-zh/en/ja/es/pt/ar)、#5 四语、#6/#11 仅 zh、#15/#20-22 为零——疑与 up 主设置或视频体量相关,fetch 的轨选择优先级(视频语言精确匹配)已覆盖此差异
+8. **静态封面播客【设计决议 2026-07-11】**:无需专门测试视频——scene-score 全平时直接取首帧作装饰帧 + 纯 transcript 大纲(比 spec §11 的 uniform 抽帧更简单,按 talking-head 文字版式渲染)。实现降级矩阵时并入 §11 该行为
 
 ## 覆盖矩阵(管线路径 → 用例)
 
@@ -54,6 +64,14 @@
 | `--lang` 覆盖(英文视频→中文 slide) | #3、#12、#14 |
 | clip 主力(screen-recording) | #6、#12 |
 | 画中画(归并整帧处理) | #6(头像) |
+| 访谈/播客(双人 A-B-A 切换,滑窗去重对抗场景) | **#16** |
+| whiteboard 手写(末帧规则 + adaptive 选峰) | **#17、#18** |
+| 分段 visual_form(演讲:实拍开场→slide 正片) | **#19、#20** |
+| >1h 超长(分章 + context 压力) | **#19(132min)、#20(112min)** |
+| 竖屏渲染版式(9:16 及更窄) | **#21、#22、#23** |
+| 极短视频(<30s,大纲语义退化边界) | **#23** |
+| 烧录字幕噪声(探针抗性) | #1、#2、**#20** |
+| 低清源(640×360,代理流≈原流) | **#17** |
 
 ## 垂直切片验收(定稿)
 
@@ -68,4 +86,7 @@
 - [ ] #7、#8 的 ai-zh 轨逐个确认(推定存在,跑回归时顺带验证)
 - [ ] B 站无 cookie 的 1080p 实际下载可用性验证(影响 §10.3 降级表述)
 - [x] ~~补充 slide-driven + 自带字幕用例~~ → 第二批已补(#11、#13、#14)
-- [ ] 每形态扩充到 5–10 个,作为探针阈值调参的标注集(spec §14 仍开放项 1)
+- [x] ~~补充 访谈/whiteboard/真演讲/竖屏 用例~~ → 第三批已补(#16–#23)
+- [x] ~~静态封面播客样本~~ → 设计决议:无需样本,首帧 + transcript(事实 8)
+- [ ] **会议记录体裁:唯一余留缺口**——补一个 Zoom/腾讯会议录屏样本,或从 MVP 模板映射表砍掉该体裁(用户决策)
+- [ ] 每形态扩充到 5–10 个,作为探针阈值调参的标注集(spec §14 仍开放项 1;当前确认数:slide 3-4 / 录屏 3 / talking-head 2 / cinematic 5 / whiteboard 2 / 分段 2)
