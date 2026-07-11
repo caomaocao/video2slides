@@ -314,16 +314,23 @@ def finalize(work: Path, cookies: str | None) -> dict:
     todo = [(nd, m) for nd in _walk_outline(sb["outline"]) for m in (nd.get("media") or [])
             if m.get("type") == "frame" and m.get("on_page") and not m.get("finalized")]
     rep = {"done": 0, "degraded": 0}
-    referer = PLATFORM_REFERER.get(meta["source"].get("platform"))
+    src = meta["source"]
+    local_path = src.get("path") if src.get("platform") == "local" else None
+    referer = PLATFORM_REFERER.get(src.get("platform"))
     url = None
     for nd, m in todo:
         out = assets / f"final_{nd['id']}_{m['t']:.1f}.jpg"
         try:
-            url = url or _direct_url(meta["source"], cookies)
-            grab_final_frame(url, m["t"], out, referer=referer)
+            if local_path:
+                grab_final_frame(local_path, m["t"], out)      # 本地源:高清即原文件,直接抓帧
+            else:
+                url = url or _direct_url(src, cookies)
+                grab_final_frame(url, m["t"], out, referer=referer)
         except RuntimeError:
             try:
-                url = _direct_url(meta["source"], cookies)      # 直链过期:重取一次(spec §8.4)
+                if local_path:
+                    raise RuntimeError("本地源抓帧失败")        # 本地无"直链过期"概念,不重取
+                url = _direct_url(src, cookies)                 # 直链过期:重取一次(spec §8.4)
                 grab_final_frame(url, m["t"], out, referer=referer)
             except RuntimeError:
                 m.update(final_path=m["proxy_path"], finalized=True, quality_limited=True)

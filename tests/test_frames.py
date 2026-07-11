@@ -243,6 +243,33 @@ def test_grab_final_frame_referer_header(monkeypatch, tmp_path):
     assert not any("Referer" in c for c in seen["cmd"])
 
 
+def test_finalize_local_source_grabs_from_original_file(tmp_path, monkeypatch):
+    """platform=local 时直接从原文件抓帧,不调 _direct_url、零降级。"""
+    import common
+    work = tmp_path / ".work"
+    fdir = common.wp(work, "frames_dir"); fdir.mkdir(parents=True)
+    p1 = fdir / "f_00001.jpg"; p1.write_bytes(b"a")
+    sb = {"video": {"duration": 100.0}, "outline": [
+        {"id": "1", "level": 1, "title": "x", "summary": "", "t_start": 0, "t_end": 50,
+         "evidence": [{"segment_id": 0, "quote": "q"}], "children": [],
+         "media": [{"type": "frame", "proxy_path": str(p1), "t": 3.0, "score": 0.5,
+                    "finalized": False, "final_path": None, "on_page": True}]}]}
+    common.save_json(common.wp(work, "storyboard"), sb)
+    common.save_json(common.wp(work, "meta"),
+                     {"duration": 100.0,
+                      "source": {"platform": "local", "path": "/videos/raw.mp4",
+                                 "canonical_url": None, "badge_url_template": None}})
+    called = {"direct": 0}
+    monkeypatch.setattr(frames, "_direct_url",
+                        lambda *a, **k: called.__setitem__("direct", called["direct"] + 1) or "x")
+    seen = {}
+    monkeypatch.setattr(frames, "grab_final_frame",
+                        lambda src, t, out, referer=None: (seen.update(src=src), Path(out).write_bytes(b"hi"))[1])
+    rep = frames.finalize(work, cookies=None)
+    assert rep["done"] == 1 and rep["degraded"] == 0
+    assert seen["src"] == "/videos/raw.mp4" and called["direct"] == 0
+
+
 def test_probe_does_not_clobber_candidates_artifacts(tmp_path):
     """--probe 与 --candidates 制品隔离:探针不得覆盖 frames_proxy/candidates.json/章 sheet。"""
     import subprocess
