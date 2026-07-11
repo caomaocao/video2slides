@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import http.client
 import json
 import re
 import subprocess as _sp
@@ -118,6 +119,10 @@ def _http_post(url: str, headers: dict, body: bytes, timeout: int = 300) -> dict
         raise RuntimeError(f"ASR HTTP {e.code}: {e.read()[:200]!r}") from e
     except urllib.error.URLError as e:
         raise RuntimeError(f"ASR 网络错误: {e.reason}") from e
+    except (OSError, http.client.HTTPException) as e:
+        # urlopen 已成功,r.read() 阶段的裸 socket 错误(如 ConnectionResetError)/IncompleteRead——
+        # URLError 是 OSError 子类,此分支须在其后,否则永远走不到
+        raise RuntimeError(f"ASR 响应读取失败: {e}") from e
     try:
         return json.loads(raw)
     except json.JSONDecodeError as e:
@@ -165,16 +170,17 @@ def _asr_transcriptions(chunks: list[tuple[Path, float, float]], cfg: dict) -> t
                 emit(f"  块失败示例({cfg['backend']}): {e}")   # 首个失败原因给诊断线索,后续同类不重复打
             failed += 1
             continue
-        raw = resp.get("segments") or ([{"start": 0.0, "end": t1 - t0, "text": resp["text"]}]
-                                       if resp.get("text") else [])
-        block: list[dict] = []                 # 先攒本块,畸形 segment 整块作废,不污染已收段
+        block: list[dict] = []                 # 先攒本块,畸形响应形状/segment 整块作废,不污染已收段
         try:
+            raw = resp.get("segments") or ([{"start": 0.0, "end": t1 - t0, "text": resp["text"]}]
+                                           if resp.get("text") else [])
             for s in raw:
                 txt = (s.get("text") or "").strip()
                 if txt:
                     block.append({"t_start": t0 + float(s["start"]),
                                   "t_end": t0 + float(s["end"]), "text": txt})
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError, AttributeError):
+            # AttributeError 覆盖顶层非 dict(None/[] 的 .get)与 segments 非列表(如字符串,逐字符迭代后 .get)
             failed += 1
             continue
         segments.extend(block)
@@ -211,7 +217,7 @@ def _asr_chat(chunks: list[tuple[Path, float, float]], cfg: dict) -> tuple[list[
                 emit(f"  块失败示例({cfg['backend']}): {str(e)[:160]}")   # 截断避免刷屏
             failed += 1                        # 网络/畸形形状统一按块失败,不击穿批次
             continue
-        if not text.strip():
+        if not isinstance(text, str) or not text.strip():   # 非字符串 content 按空 content 处理
             failed += 1
             continue
         segments.append({"t_start": t0, "t_end": t1, "text": text.strip()})
@@ -285,7 +291,8 @@ def run_cli(argv=None) -> int:
             emit(f"ASR 配置无效:{e}")
             return 3
         if cfg["family"] == "none":
-            emit("无字幕轨且 ASR_BACKEND=none——配置 funasr/mimo/qwen 等后端,或提供 --transcript(spec §10.1)")
+            emit("无字幕轨且 ASR_BACKEND=none——配置 ASR 后端(设 ASR_BACKEND / 部署 funasr venv)后重试"
+                 "(转写文件直供 --transcript 为未来版本能力,本切片未实现)")
             return 3
         audio = wp(work, "audio")
         if not args.force and is_fresh(out_p, audio):

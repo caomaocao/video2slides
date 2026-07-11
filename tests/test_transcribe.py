@@ -175,6 +175,21 @@ def test_http_post_invalid_json_becomes_runtime_error(monkeypatch):
         transcribe._http_post("https://x/v1/audio/transcriptions", {}, b"")
 
 
+def test_http_post_read_error_becomes_runtime_error(monkeypatch):
+    """urlopen 成功后 r.read() 阶段抛裸 socket 错误(ConnectionResetError 等 OSError 子类)必须归一为
+    RuntimeError,否则穿透两个既有 except(HTTPError/URLError 均在 urlopen 调用处触发,不覆盖读响应体阶段)。"""
+    import urllib.request
+
+    class FakeResp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): raise ConnectionResetError("Connection reset by peer")
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=300: FakeResp())
+    with pytest.raises(RuntimeError):
+        transcribe._http_post("https://x/v1/audio/transcriptions", {}, b"")
+
+
 def test_asr_transcriptions_malformed_segment_counts_failed(tmp_path, monkeypatch):
     """segment 缺 start/end 只作废该块(failed+1),不崩整批、不留半截段。"""
     bad = {"segments": [{"start": 0.0, "end": 1.0, "text": "好段"},
@@ -184,6 +199,32 @@ def test_asr_transcriptions_malformed_segment_counts_failed(tmp_path, monkeypatc
     segs, failed = transcribe._asr_transcriptions([(c1, 0.0, 45.0)], {
         "backend": "groq", "family": "transcriptions", "base": "https://b/v1",
         "model": "m", "key": "k", "language": "auto", "asr_options": False})
+    assert failed == 1 and segs == []
+
+
+def test_asr_transcriptions_nondict_response_counts_failed(tmp_path, monkeypatch):
+    """端点返回 2xx + 合法 JSON,但顶层非 dict(null/数组)时:resp.get 会 AttributeError——
+    该块须计 failed、不穿透,整批继续处理后续块。"""
+    responses = [None, []]
+    calls = {"i": -1}
+
+    def fake_post(url, headers, body, timeout=300):
+        calls["i"] += 1
+        return responses[calls["i"]]
+
+    monkeypatch.setattr(transcribe, "_http_post", fake_post)
+    c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"x")
+    c2 = tmp_path / "c2.mp3"; c2.write_bytes(b"y")
+    segs, failed = transcribe._asr_transcriptions([(c1, 0.0, 45.0), (c2, 45.0, 90.0)], _cfg_transcriptions())
+    assert failed == 2 and segs == []
+
+
+def test_asr_transcriptions_segments_wrong_type_counts_failed(tmp_path, monkeypatch):
+    """segments 字段非段列表(如字符串)时,for 循环逐字符迭代再 s.get 会 AttributeError——
+    同样按块失败处理,不崩整批。"""
+    monkeypatch.setattr(transcribe, "_http_post", lambda *a, **k: {"segments": "oops"})
+    c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"x")
+    segs, failed = transcribe._asr_transcriptions([(c1, 0.0, 45.0)], _cfg_transcriptions())
     assert failed == 1 and segs == []
 
 
@@ -253,6 +294,16 @@ def test_asr_chat_malformed_resp_shapes_count_failed(tmp_path, monkeypatch):
         "model": "m", "key": "k", "language": "auto", "asr_options": False})
     assert failed == 4
     assert segs == [{"t_start": 0.0, "t_end": 10.0, "text": "好块"}]   # 首块保留
+
+
+def test_asr_chat_nonstring_content_counts_failed(tmp_path, monkeypatch):
+    """content 类型前提不封闭(ASR_API_BASE 可指向任意端点):非字符串 content(如数值)时
+    text.strip() 会裸 AttributeError——须按空 content 处理,计 failed,不崩整批。"""
+    resp = {"choices": [{"message": {"content": 12345}}]}
+    monkeypatch.setattr(transcribe, "_http_post", lambda *a, **k: resp)
+    c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"x")
+    segs, failed = transcribe._asr_chat([(c1, 0.0, 45.0)], _cfg_chat())
+    assert failed == 1 and segs == []
 
 
 def test_asr_chat_first_failure_reason_emitted(tmp_path, monkeypatch, capsys):
