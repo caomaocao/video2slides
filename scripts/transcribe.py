@@ -214,6 +214,16 @@ def _asr_chat(chunks: list[tuple[Path, float, float]], cfg: dict) -> tuple[list[
     return segments, failed
 
 
+def _asr_funasr(audio: Path, cfg: dict) -> list[dict]:
+    """FunASR 子进程后端:句级真时间戳,中文最优;长音频由其内置 VAD 处理,不经切块层。"""
+    venv_py = Path(cfg["funasr_venv"]).expanduser() / "bin" / "python"
+    if not venv_py.exists():
+        raise RuntimeError(f"FUNASR_VENV 无效(缺 {venv_py})——配置 FUNASR_VENV 或改用 mimo/qwen 等 API 后端")
+    runner = Path(__file__).parent / "funasr_runner.py"
+    out = run([venv_py, runner, audio, "--lang", cfg.get("language", "zh")], timeout=7200)
+    return json.loads(out)
+
+
 def _parse_silences(stderr_text: str) -> list[float]:
     """silencedetect 输出 → 静音区间中点列表(升序)。"""
     mids, start = [], None

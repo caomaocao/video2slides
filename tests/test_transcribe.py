@@ -253,3 +253,28 @@ def test_asr_chat_malformed_resp_shapes_count_failed(tmp_path, monkeypatch):
         "model": "m", "key": "k", "language": "auto", "asr_options": False})
     assert failed == 4
     assert segs == [{"t_start": 0.0, "t_end": 10.0, "text": "好块"}]   # 首块保留
+
+
+def test_asr_funasr_cmd_and_parse(tmp_path, monkeypatch):
+    venv = tmp_path / "venv" / "bin"; venv.mkdir(parents=True)
+    (venv / "python").write_text("")                           # 存在性检查用
+    seen = {}
+
+    def fake_run(cmd, timeout=600):
+        seen["cmd"] = [str(c) for c in cmd]
+        return '[{"t_start": 0.5, "t_end": 3.2, "text": "你好"}]'
+
+    monkeypatch.setattr(transcribe, "run", fake_run)
+    cfg = {"backend": "funasr", "family": "funasr", "funasr_venv": str(tmp_path / "venv"),
+           "language": "zh"}
+    segs = transcribe._asr_funasr(tmp_path / "a.mp3", cfg)
+    assert segs == [{"t_start": 0.5, "t_end": 3.2, "text": "你好"}]
+    assert seen["cmd"][0].endswith("venv/bin/python")
+    assert seen["cmd"][1].endswith("funasr_runner.py")
+
+
+def test_asr_funasr_missing_venv(tmp_path):
+    cfg = {"backend": "funasr", "family": "funasr", "funasr_venv": str(tmp_path / "nope"),
+           "language": "zh"}
+    with pytest.raises(RuntimeError, match="FUNASR_VENV"):
+        transcribe._asr_funasr(tmp_path / "a.mp3", cfg)
