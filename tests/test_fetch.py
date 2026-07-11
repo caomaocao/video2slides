@@ -135,3 +135,43 @@ def test_pick_subtitle_ai_fallback_prefers_ai_zh():
 def test_pick_subtitle_ai_tier_lang_match_strips_prefix():
     """ai-* 轨以去前缀语言参与匹配:video_lang=zh 应命中 ai-zh 而非落入兜底。"""
     assert fetch.pick_subtitle_track({"ai-en": [], "ai-zh": []}, {}, "zh") == ("ai", "ai-zh")
+
+
+def test_fetch_audio_cmd_online(tmp_path, monkeypatch):
+    """fetch_audio 在线源应生成 yt-dlp -x 命令抽音频。"""
+    seen = {}
+    monkeypatch.setattr(fetch, "run", lambda cmd, timeout=1800: seen.update(cmd=[str(c) for c in cmd]))
+    src = fetch.normalize_url("https://www.youtube.com/watch?v=QNiaoD5RxPA")
+    work = tmp_path / ".work"; work.mkdir()
+    (work / "audio.mp3").write_bytes(b"")     # run 被替换,产物手工放置模拟
+    out = fetch.fetch_audio(src, work, None, force=True)
+    assert str(out).endswith("audio.mp3")
+    assert "-x" in seen["cmd"] and "--audio-format" in seen["cmd"] and "ba" in seen["cmd"]
+
+
+def test_main_no_subs_with_asr_fetches_audio(tmp_path, monkeypatch):
+    """无字幕轨 + ASR 可用 → 不再 exit 3,改抽音频。"""
+    import common
+    monkeypatch.setenv("ASR_BACKEND", "qwen")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk")
+    monkeypatch.setattr(fetch, "fetch_meta", lambda *a, **k: {"title": "t", "duration": 1.0,
+                                                              "language": None})
+    monkeypatch.setattr(fetch, "fetch_proxy", lambda *a, **k: tmp_path / "p.mp4")
+    monkeypatch.setattr(fetch, "fetch_subs", lambda *a, **k: None)
+    called = {}
+    monkeypatch.setattr(fetch, "fetch_audio", lambda *a, **k: called.setdefault("audio", True))
+    rc = fetch.main(["--url", "https://www.youtube.com/watch?v=QNiaoD5RxPA",
+                     "--work", str(tmp_path / ".work")])
+    assert rc == 0 and called.get("audio")
+
+
+def test_main_no_subs_no_asr_returns_3(tmp_path, monkeypatch):
+    """无字幕轨且无 ASR 可用时返回 3。"""
+    monkeypatch.setenv("ASR_BACKEND", "none")
+    monkeypatch.setattr(fetch, "fetch_meta", lambda *a, **k: {"title": "t", "duration": 1.0,
+                                                              "language": None})
+    monkeypatch.setattr(fetch, "fetch_proxy", lambda *a, **k: tmp_path / "p.mp4")
+    monkeypatch.setattr(fetch, "fetch_subs", lambda *a, **k: None)
+    rc = fetch.main(["--url", "https://www.youtube.com/watch?v=QNiaoD5RxPA",
+                     "--work", str(tmp_path / ".work")])
+    assert rc == 3

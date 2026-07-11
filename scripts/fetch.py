@@ -8,7 +8,8 @@ import sys
 import urllib.parse
 from pathlib import Path
 
-from common import emit, is_fresh, load_json, run, save_json, wp
+from common import emit, is_fresh, load_env_config, load_json, run, save_json, wp
+from transcribe import resolve_asr_config
 
 
 def _yt(vid: str) -> dict:
@@ -172,13 +173,31 @@ def fetch_subs(source: dict, work: Path, cookies: str | None, force: bool):
     return sub
 
 
-def main() -> int:
+def fetch_audio(source: dict, work: Path, cookies: str | None, force: bool) -> Path:
+    """音频轨懒抓(仅无字幕轨且 ASR 可用时调用):在线走 yt-dlp -x,本地走 ffmpeg 抽轨。"""
+    audio = wp(work, "audio")
+    if not force and is_fresh(audio):
+        return audio
+    if source["platform"] == "local":
+        run(["ffmpeg", "-y", "-v", "error", "-i", source["path"], "-vn",
+             "-c:a", "libmp3lame", "-b:a", "64k", "-ac", "1", str(audio)], timeout=3600)
+    else:
+        cmd = _ytdlp_base(source, cookies)
+        cmd[-1:-1] = ["-f", "ba", "-x", "--audio-format", "mp3", "--audio-quality", "64K",
+                      "-o", str(work / "audio.%(ext)s")]
+        run(cmd, timeout=3600)
+    if not audio.exists():
+        raise RuntimeError(f"音频轨未产出: {audio}")
+    return audio
+
+
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
     ap.add_argument("--work", required=True)
     ap.add_argument("--cookies-from-browser", default=None)
     ap.add_argument("--force", action="store_true")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     work = Path(args.work)
     work.mkdir(parents=True, exist_ok=True)
@@ -187,8 +206,19 @@ def main() -> int:
     proxy = fetch_proxy(source, work, args.cookies_from_browser, args.force)
     sub = fetch_subs(source, work, args.cookies_from_browser, args.force)
     if sub is None:
-        print("无可用字幕轨——切片范围外,需 ASR(spec §10.1 三家族)或 --transcript")
-        return 3
+        # 无字幕轨时尝试 ASR 流程
+        try:
+            cfg = resolve_asr_config(load_env_config())
+        except ValueError as e:
+            emit(f"无可用字幕轨,且 ASR 配置无效:{e}")
+            return 3
+        if cfg["family"] == "none":
+            emit("无可用字幕轨——ASR_BACKEND=none,需改配后端(funasr/mimo/qwen…)或提供 --transcript(spec §10.1)")
+            return 3
+        audio = fetch_audio(source, work, args.cookies_from_browser, args.force)
+        emit(f"audio: {audio}(无字幕轨 → ASR:{cfg['backend']})",
+             next_hint=f"python scripts/transcribe.py --work {work}")
+        return 0
     emit(
         f"meta: {wp(work, 'meta')}({meta['title'][:40]},{meta['duration']:.0f}s)",
         f"priors: {wp(work, 'priors')}",
