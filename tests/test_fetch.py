@@ -69,6 +69,13 @@ def test_proxy_format_selector_is_video_only_360p():
     assert "height<=360" in sel and sel.startswith("bv*")
 
 
+def test_proxy_format_selector_covers_portrait():
+    """竖屏视频 height 是长边:选择器链必须含 width<=360 档(验收 #21 系统性失配)。"""
+    sel = fetch.proxy_format_selector()
+    assert "bv*[width<=360]" in sel
+    assert sel.index("height<=360") < sel.index("width<=360")   # 横屏优先原语义保持
+
+
 def test_subs_download_cmd_manual_vs_ai():
     src = fetch.normalize_url("https://www.youtube.com/watch?v=QNiaoD5RxPA")
     cmd = fetch.subs_download_cmd(src, ("manual", "zh-Hans"), Path("/tmp/w"), None)
@@ -225,7 +232,7 @@ def test_local_meta_fallback_ffprobe(tmp_path, monkeypatch):
 
 
 def test_local_proxy_cmd(tmp_path, monkeypatch):
-    """fetch_proxy 本地分支:ffmpeg scale=-2:360 -an 代理。"""
+    """fetch_proxy 本地分支:ffmpeg 方向自适应 scale -an 代理(验收 #21:竖屏短边 360)。"""
     seen = {}
     monkeypatch.setattr(fetch, "run", lambda cmd, timeout=1800: seen.update(cmd=[str(c) for c in cmd]))
     v = tmp_path / "v.mp4"; v.write_bytes(b"x")
@@ -233,4 +240,15 @@ def test_local_proxy_cmd(tmp_path, monkeypatch):
     work = tmp_path / ".work"; work.mkdir()
     (work / "proxy.mp4").write_bytes(b"")
     fetch.fetch_proxy(src, work, None, force=True)
-    assert "scale=-2:360" in " ".join(seen["cmd"]) and "-an" in seen["cmd"]
+    assert "if(gte(iw,ih)" in " ".join(seen["cmd"]) and "-an" in seen["cmd"]
+
+
+def test_local_proxy_scale_orientation_aware(tmp_path, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(fetch, "run", lambda cmd, timeout=3600: seen.update(cmd=" ".join(str(c) for c in cmd)))
+    v = tmp_path / "v.mp4"; v.write_bytes(b"x")
+    src = fetch.normalize_url(str(v))
+    work = tmp_path / ".work"; work.mkdir()
+    (work / "proxy.mp4").write_bytes(b"")
+    fetch.fetch_proxy(src, work, None, force=True)
+    assert "if(gte(iw,ih)" in seen["cmd"]

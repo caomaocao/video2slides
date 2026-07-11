@@ -255,6 +255,18 @@ def test_asr_chat_malformed_resp_shapes_count_failed(tmp_path, monkeypatch):
     assert segs == [{"t_start": 0.0, "t_end": 10.0, "text": "好块"}]   # 首块保留
 
 
+def test_asr_chat_first_failure_reason_emitted(tmp_path, monkeypatch, capsys):
+    """首个块失败的具体原因必须出现在 stdout(验收 #21:401 被吞导致不可诊断)。"""
+    def boom(url, headers, body, timeout=300):
+        raise RuntimeError("ASR HTTP 401: invalid_api_key")
+    monkeypatch.setattr(transcribe, "_http_post", boom)
+    c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"x")
+    transcribe._asr_chat([(c1, 0.0, 45.0)], {
+        "backend": "qwen", "family": "chat", "base": "https://b/v1",
+        "model": "m", "key": "k", "language": "auto", "asr_options": False})
+    assert "401" in capsys.readouterr().out
+
+
 def test_asr_funasr_cmd_and_parse(tmp_path, monkeypatch):
     venv = tmp_path / "venv" / "bin"; venv.mkdir(parents=True)
     (venv / "python").write_text("")                           # 存在性检查用

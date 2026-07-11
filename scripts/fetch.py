@@ -159,8 +159,11 @@ def fetch_meta(source: dict, work: Path, cookies: str | None, force: bool) -> di
 
 
 def proxy_format_selector() -> str:
-    # 代理流:≤360p 仅视频轨(分析不需音频;ASR/clip 需要时再拉,spec §8.0)
-    return "bv*[height<=360][ext=mp4]/bv*[height<=360]/b[height<=360]"
+    # 代理流:短边 ≈360 仅视频轨。横屏用 height<=360;竖屏(height=长边)用 width<=360 档兜住
+    # ——2026-07-11 验收 #21 实测:竖屏 1080×1920 在纯 height 链下 100% 失配(spec §8.0)
+    return ("bv*[height<=360][ext=mp4]/bv*[height<=360]/"
+            "bv*[width<=360][ext=mp4]/bv*[width<=360]/"
+            "b[height<=360]/b[width<=360]")
 
 
 def fetch_proxy(source: dict, work: Path, cookies: str | None, force: bool) -> Path:
@@ -169,8 +172,11 @@ def fetch_proxy(source: dict, work: Path, cookies: str | None, force: bool) -> P
         return proxy
     # 本地文件分支:ffmpeg 降采样代理
     if source["platform"] == "local":
+        # 短边恒 360:横屏(宽≥高)高定 360 宽自适应,竖屏宽定 360 高自适应
+        # ——2026-07-11 验收 #21 实测:定死 scale=-2:360 会把竖屏长边压到 360,画面过糊
         run(["ffmpeg", "-y", "-v", "error", "-i", source["path"],
-             "-vf", "scale=-2:360", "-an", "-c:v", "libx264", "-preset", "veryfast",
+             "-vf", "scale='if(gte(iw,ih),-2,360)':'if(gte(iw,ih),360,-2)'",
+             "-an", "-c:v", "libx264", "-preset", "veryfast",
              "-crf", "28", str(proxy)], timeout=3600)
     else:
         cmd = _ytdlp_base(source, cookies)

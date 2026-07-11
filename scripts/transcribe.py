@@ -160,7 +160,9 @@ def _asr_transcriptions(chunks: list[tuple[Path, float, float]], cfg: dict) -> t
         url = f"{cfg['base']}/audio/transcriptions"
         try:
             resp = _with_retry(lambda: _http_post(url, headers, body))
-        except RuntimeError:
+        except RuntimeError as e:
+            if failed == 0:
+                emit(f"  块失败示例({cfg['backend']}): {e}")   # 首个失败原因给诊断线索,后续同类不重复打
             failed += 1
             continue
         raw = resp.get("segments") or ([{"start": 0.0, "end": t1 - t0, "text": resp["text"]}]
@@ -204,7 +206,9 @@ def _asr_chat(chunks: list[tuple[Path, float, float]], cfg: dict) -> tuple[list[
         try:
             resp = _with_retry(lambda: _http_post(url, headers, body))
             text = ((resp.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-        except (RuntimeError, AttributeError, KeyError, TypeError, IndexError):
+        except (RuntimeError, AttributeError, KeyError, TypeError, IndexError) as e:
+            if failed == 0:
+                emit(f"  块失败示例({cfg['backend']}): {str(e)[:160]}")   # 截断避免刷屏
             failed += 1                        # 网络/畸形形状统一按块失败,不击穿批次
             continue
         if not text.strip():
