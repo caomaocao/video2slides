@@ -1,0 +1,5 @@
+[silencedetect @ 0x600002f30000] silence_start: 42.8124
+[silencedetect @ 0x600002f30000] silence_end: 43.5312 | silence_duration: 0.71875
+[silencedetect @ 0x600002f30000] silence_start: 89.1
+[silencedetect @ 0x600002f30000] silence_end: 90.02 | silence_duration: 0.92
+size=N/A time=00:02:00.00 bitrate=N/A speed= 512x

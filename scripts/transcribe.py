@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess as _sp
 import sys
 from pathlib import Path
 
-from common import emit, is_fresh, load_json, save_json, wp
+from common import emit, ffprobe_duration, is_fresh, load_json, run, save_json, wp
 
 _TS = re.compile(r"(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})")
 _TAG = re.compile(r"<[^>]+>")
@@ -88,6 +89,51 @@ def dedup_cues(cues: list[dict]) -> list[dict]:
             out[-1]["t_end"] = c["t_end"]      # 滚动重复:合并延长
             continue
         out.append({"t_start": c["t_start"], "t_end": c["t_end"], "text": t})
+    return out
+
+
+# 切块初始值(切片2设计 §3)
+SIL_ARGS = "silencedetect=noise=-35dB:d=0.4"
+CHUNK_TARGET = 45.0
+CHUNK_HARD_MAX = 600.0
+
+_SIL_RE = re.compile(r"silence_(start|end): ([\d.]+)")
+
+
+def _parse_silences(stderr_text: str) -> list[float]:
+    """silencedetect 输出 → 静音区间中点列表(升序)。"""
+    mids, start = [], None
+    for kind, val in _SIL_RE.findall(stderr_text):
+        if kind == "start":
+            start = float(val)
+        elif start is not None:
+            mids.append((start + float(val)) / 2)
+            start = None
+    return mids
+
+
+def detect_silences(audio: Path) -> list[float]:
+    r = _sp.run(["ffmpeg", "-hide_banner", "-i", str(audio), "-af", SIL_ARGS, "-f", "null", "-"],
+                capture_output=True, text=True, timeout=1800)
+    return _parse_silences(r.stderr or "")
+
+
+def plan_chunks(silences: list[float], duration: float,
+                target: float = CHUNK_TARGET, hard_max: float = CHUNK_HARD_MAX) -> list[tuple[float, float]]:
+    """在静音处就近断块:目标 target,±15s 窗内取最近静音点,无则硬切;尾块 ≤1.5×target 不再切。"""
+    cuts = [0.0]
+    while duration - cuts[-1] > target * 1.5:
+        want = cuts[-1] + target
+        near = [s for s in silences if want - 15 <= s <= want + 15 and s > cuts[-1] + 5]
+        cut = min(near, key=lambda s: abs(s - want)) if near else min(want, cuts[-1] + hard_max)
+        cuts.append(round(cut, 3))
+    return list(zip(cuts, cuts[1:] + [duration]))
+
+
+def cut_chunk(audio: Path, t0: float, t1: float, out: Path) -> Path:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    run(["ffmpeg", "-y", "-v", "error", "-ss", f"{t0:.3f}", "-t", f"{t1 - t0:.3f}",
+         "-i", audio, "-c:a", "libmp3lame", "-b:a", "64k", "-ac", "1", out], timeout=600)
     return out
 
 

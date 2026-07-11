@@ -14,6 +14,7 @@ ARTIFACTS = {
     "proxy": "proxy.mp4",
     "subs_dir": "subs",
     "transcript": "transcript.json",
+    "audio": "audio.mp3",
     "scene_scores": "scene_scores.json",
     "page_boundaries": "page_boundaries.json",
     "frames_dir": "frames_proxy",
@@ -101,3 +102,10 @@ def load_env_config(path: Path | str | None = None) -> dict[str, str]:
     for k, v in os.environ.items():
         cfg[k] = v
     return cfg
+
+
+def ffprobe_duration(path: Path | str) -> float:
+    """ffprobe 读媒体时长(秒)。"""
+    out = run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+               "-of", "csv=p=0", str(path)])
+    return float(out.strip().splitlines()[0])
