@@ -24,13 +24,14 @@ exit 0 → 预检通过,继续;exit 2 → 按 stdout 提示装好 `ffmpeg`/`ffpr
 
 ### 1. 取流
 `python scripts/fetch.py --url <URL> --work <OUT>/.work`(B 站加 `--cookies-from-browser chrome`)。
-exit 3 = 无字幕轨且 ASR 不可用(none/配置无效)——告知用户配置后端或提供 `--transcript`,停止。无字幕轨但 ASR 可用时,fetch 会自动抽音频轨(`.work/audio.mp3`)并提示进 transcribe。本地文件:直接把文件路径当 `--url` 传入(sidecar 同名 `.json` 元数据自动读取;`--cookies-from-browser` 忽略)。
+exit 3 = 无字幕轨且 ASR 不可用(none/配置无效)——告知用户配置 ASR(设 `ASR_BACKEND` / 部署 funasr venv),停止(转写文件直供 `--transcript` 为未来版本能力,本切片未实现,不要提)。无字幕轨但 ASR 可用时,fetch 会自动抽音频轨(`.work/audio.mp3`)并提示进 transcribe。本地文件:直接把文件路径当 `--url` 传入(sidecar 同名 `.json` 元数据自动读取;`--cookies-from-browser` 忽略)。
 输出目录 `<OUT>` 默认 `~/Desktop/video2slides/<title>_<YYYYMMDD>/`。
 
 ### 2. 转写与信号
 `python scripts/transcribe.py --work <W>` → `python scripts/signals.py --work <W>`。
 - transcribe.py:有字幕轨时,exit 1 = 字幕文件解析出 0 段(格式异常/内容为空),停止并告知用户;exit 0 = 成功。无字幕轨时 transcribe 走 ASR(后端由 .env 决定,默认 funasr):exit 3 = ASR 配置无效 / `ASR_BACKEND=none` / `.work/audio.mp3` 缺失 / 后端调用失败(按 stdout 定位具体原因);exit 1 = ASR 产出 0 段(全部块失败或音频异常),不落盘;exit 0 = 成功。funasr 本地转写约 0.1–0.3× 实时,长视频耐心等待;mimo/qwen 为 45s 切块逐块调用,transcript 的时间戳为块级粒度(45s 级)、`source` 标 `asr:<backend>`。**ASR/机翻文本有噪声**:evidence quote 仍保原文一字不差,专有名词错译可在 slide 正文用小注澄清(参考 meeting5min 成品)。失败块会在 stdout 汇总(transcript 留缺口)。
 - signals.py:exit 1 = scene-score 遍历失败(如单帧/静态视频)——spec §11 描述的降级路径(uniform 抽帧兜底)本切片未实现,遇到即直接停止并告知用户。
+- **块级时间戳窗口微调**(`transcript.json` 的 `source` 为 `asr:mimo`/`asr:qwen` 时适用):此时时间戳是 45s 块级粒度,叶子节点的选帧时间窗本质是宿主估计,而非精确边界;frames.py 的窗口预扩张可能让选中帧落在字面窗口外,与步骤 9 QA「角标秒数须在节点时间窗内」的规则系统性打架。出现此类落空时,微调相邻叶子节点的边界使角标落回窗内(验收 #21 实例:相邻叶子 3.2/3.3 边界微调至 144.0),而不要因窗外丢弃该帧。
 记下 stdout 的 `curve_stats`(含 `plateau_ratio`、`spikes_per_min`,下一步要用)。
 
 ### 3. 轴 A/B 分类

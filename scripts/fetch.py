@@ -264,7 +264,8 @@ def main(argv=None) -> int:
             emit(f"无可用字幕轨,且 ASR 配置无效:{e}")
             return 3
         if cfg["family"] == "none":
-            emit("无可用字幕轨——ASR_BACKEND=none,需改配后端(funasr/mimo/qwen…)或提供 --transcript(spec §10.1)")
+            emit("无可用字幕轨——ASR_BACKEND=none,需改配 ASR 后端(funasr/mimo/qwen…)后重试"
+                 "(转写文件直供 --transcript 为未来版本能力,本切片未实现)")
             return 3
         audio = fetch_audio(source, work, args.cookies_from_browser, args.force)
         emit(f"audio: {audio}(无字幕轨 → ASR:{cfg['backend']})",
