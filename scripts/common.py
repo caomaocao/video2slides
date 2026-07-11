@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -16,6 +17,7 @@ ARTIFACTS = {
     "scene_scores": "scene_scores.json",
     "page_boundaries": "page_boundaries.json",
     "frames_dir": "frames_proxy",
+    "probe_dir": "probe_frames",
     "candidates": "candidates.json",
     "sheets_dir": "sheets",
     "storyboard": "storyboard.json",
@@ -40,7 +42,9 @@ def load_json(p: Path | str):
 def save_json(p: Path | str, obj) -> None:
     p = Path(p)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(obj, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, p)   # 原子替换:storyboard.json 等制品写一半被杀不损坏(续跑契约)
 
 
 def run(cmd: list, timeout: int = 600) -> str:

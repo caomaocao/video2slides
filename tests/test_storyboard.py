@@ -77,7 +77,8 @@ def test_aggregate_media_topk_from_leaves():
 
 
 def test_quote_ok_strips_cjk_curly_quotes_and_fullwidth_parens():
-    assert sb_mod.quote_ok("反向传播其实很简单", "他说“反向传播”其实很简单(示例)")
+    assert sb_mod.quote_ok("反向传播其实很简单", "他说“反向传播”其实很简单（示例）")
+    assert sb_mod.quote_ok("模型一次能处理的最大信息量", "模型一次能处理的最大信息量，就叫上下文窗口！")
 
 
 def test_quote_ok_fuzzy_matches_short_quote_in_long_segment():

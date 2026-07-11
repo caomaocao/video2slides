@@ -9,7 +9,7 @@ from pathlib import Path
 
 from common import emit, load_json, rgb_signature, save_json, sig_diff_ratio, wp
 
-_PUNCT = re.compile(r"[\s,。,、.!?!?::;;\"'“”‘’()()\[\]【】《》<>—\-…·]+")
+_PUNCT = re.compile(r"[\s,，。、.!！?？:：;；\"'“”‘’()（）\[\]【】《》<>—\-…·]+")
 REQUIRED_NODE_KEYS = ("id", "title", "t_start", "t_end", "evidence")
 
 

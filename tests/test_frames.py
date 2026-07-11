@@ -241,3 +241,25 @@ def test_grab_final_frame_referer_header(monkeypatch, tmp_path):
     assert any("Referer: https://www.bilibili.com/" in c for c in seen["cmd"])
     frames.grab_final_frame("http://x/v.m4s", 1.0, tmp_path / "o2.jpg")
     assert not any("Referer" in c for c in seen["cmd"])
+
+
+def test_probe_does_not_clobber_candidates_artifacts(tmp_path):
+    """--probe 与 --candidates 制品隔离:探针不得覆盖 frames_proxy/candidates.json/章 sheet。"""
+    import subprocess
+    import common
+    work = tmp_path / ".work"; work.mkdir()
+    proxy = common.wp(work, "proxy")
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi",
+                    "-i", "color=red:s=320x180:r=10:d=3",
+                    "-pix_fmt", "yuv420p", "-y", str(proxy)], check=True)
+    rows = [{"n": i, "t": i / 10, "score": 0.0} for i in range(30)]
+    common.save_json(common.wp(work, "scene_scores"), rows)
+    sentinel = [{"node_id": "1", "t": 0.5, "file": "keep.jpg"}]
+    common.save_json(common.wp(work, "candidates"), sentinel)
+    fdir = common.wp(work, "frames_dir"); fdir.mkdir()
+    (fdir / "f_00001.jpg").write_bytes(b"keep")
+    assert frames.run_cli(["--probe", "--work", str(work)]) == 0
+    assert common.load_json(common.wp(work, "candidates")) == sentinel
+    assert (fdir / "f_00001.jpg").read_bytes() == b"keep"
+    assert list((work / "probe_frames").glob("f_*.jpg"))
+    assert list(common.wp(work, "sheets_dir").glob("probe0_0.jpg"))

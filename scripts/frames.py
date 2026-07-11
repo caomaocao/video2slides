@@ -96,9 +96,12 @@ def build_select_expr(frame_ns: list[int]) -> str:
     return f"select='{terms}'"
 
 
-def extract_candidates(work: Path, cands: list[dict], rows: list[dict]) -> list[dict]:
-    """单遍解码抽出全部候选帧到 frames_proxy/f_%05d.jpg(输出序 = 帧号升序),回填 n/file,落盘 candidates.json。"""
-    frames_dir = wp(work, "frames_dir")
+def extract_candidates(work: Path, cands: list[dict], rows: list[dict],
+                       frames_dir: Path | None = None, save_candidates: bool = True) -> list[dict]:
+    """单遍解码抽出全部候选帧到 frames_dir/f_%05d.jpg(输出序 = 帧号升序),回填 n/file,
+    默认落盘 candidates.json。frames_dir 默认为 frames_proxy(--candidates 制品目录);
+    --probe 传入独立的 probe_dir 并关闭落盘,防止探针覆盖选帧阶段正在引用的制品(spec §8.1)。"""
+    frames_dir = frames_dir or wp(work, "frames_dir")
     frames_dir.mkdir(parents=True, exist_ok=True)
     for c in cands:
         c["n"] = t_to_frame(c["t"], rows)
@@ -110,7 +113,7 @@ def extract_candidates(work: Path, cands: list[dict], rows: list[dict]) -> list[
         by_n.setdefault(c["n"], []).append(c)
     ns = sorted(by_n)
 
-    sel = work / "select.txt"
+    sel = frames_dir / "select.txt"
     sel.write_text(build_select_expr(ns), encoding="utf-8")
     run(["ffmpeg", "-y", "-v", "error", "-i", wp(work, "proxy"),
          "-filter_script:v", sel, "-fps_mode", "passthrough",
@@ -121,7 +124,8 @@ def extract_candidates(work: Path, cands: list[dict], rows: list[dict]) -> list[
         for c in by_n[n]:
             c["file"] = f
             ordered.append(c)
-    save_json(wp(work, "candidates"), ordered)
+    if save_candidates:
+        save_json(wp(work, "candidates"), ordered)
     return ordered
 
 
@@ -239,10 +243,11 @@ def _cap_per_node(g: list[dict], cap: int = 18) -> tuple[list[dict], bool, list[
     return sorted(picked, key=lambda c: c["t"]), truncated, dropped
 
 
-def make_sheets(work: Path, selected: dict, chapters: list[dict]) -> list[dict]:
+def make_sheets(work: Path, selected: dict, chapters: list[dict], prefix: str = "ch") -> list[dict]:
     """按章全覆盖分组(无 chapters 视为单章),章内按节点轮转配额取帧后按时间序
     scale=640:360 + tile=3x3 拼图,每章预算 ≤2 张(18 帧);截断记 truncated=true,
-    被整体截掉的节点记 dropped_node_ids(spec §8.3)。"""
+    被整体截掉的节点记 dropped_node_ids(spec §8.3)。prefix 区分调用方(--probe 用
+    "probe",--candidates 用默认 "ch"),避免探针 sheet 与候选 sheet 同名互相覆盖。"""
     sheets_dir = wp(work, "sheets_dir")
     sheets_dir.mkdir(parents=True, exist_ok=True)
     flat = sorted((c for cs in selected.values() for c in cs), key=lambda c: c["t"])
@@ -255,7 +260,7 @@ def make_sheets(work: Path, selected: dict, chapters: list[dict]) -> list[dict]:
             tmp.mkdir(exist_ok=True)
             for bi, c in enumerate(batch):
                 _shutil.copy(c["file"], tmp / f"img_{bi:03d}.jpg")
-            sheet = sheets_dir / f"ch{gi}_{si // 9}.jpg"
+            sheet = sheets_dir / f"{prefix}{gi}_{si // 9}.jpg"
             run(["ffmpeg", "-y", "-v", "error", "-framerate", "1",
                  "-i", tmp / "img_%03d.jpg",
                  "-vf", "scale=640:360,tile=3x3", "-frames:v", "1", sheet])
@@ -359,13 +364,18 @@ def run_cli(argv=None) -> int:
         ts = [duration * (i + 0.5) / 15 for i in range(15)]
         cands = [{"node_id": f"probe_{i}", "t": t, "reason": "probe", "peak_score": 0.0}
                  for i, t in enumerate(ts)]
-        ordered = extract_candidates(work, cands, rows)
-        sheets = make_sheets(work, {"probe": ordered}, chapters=[])
+        # 制品隔离:探针帧写 probe_dir、不落盘 candidates.json,防止覆盖 --candidates
+        # 正在维护的 frames_proxy/candidates.json/章 sheet(选帧后重跑 --probe 曾静默同名覆盖)
+        ordered = extract_candidates(work, cands, rows,
+                                     frames_dir=wp(work, "probe_dir"), save_candidates=False)
+        sheets = make_sheets(work, {"probe": ordered}, chapters=[], prefix="probe")
         emit(*[f"probe sheet: {s['sheet']}" for s in sheets],
              next_hint="Claude Read 探针 sheet 确认 visual_form(spec §5.1)")
         return 0
 
     if args.candidates:
+        # --force 为保留参数,此分支不接线 is_fresh 自动跳过:storyboard 既是本步上游(骨架)
+        # 又是下游(media 回填),mtime 无法判定新旧;重跑本身确定性幂等,直接执行即可。
         sb = load_json(wp(work, "storyboard"))
         bounds = load_json(wp(work, "page_boundaries"))
         chapters = load_json(wp(work, "priors"))["chapters"]
