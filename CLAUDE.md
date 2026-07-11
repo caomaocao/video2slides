@@ -42,7 +42,7 @@ Key v0.4 decisions (details in spec):
 - **Long videos**: >30min outlines are generated per chapter, then globally merged (spec §7). Output language follows the video's language (`--lang` overrides); evidence quotes stay verbatim.
 - **Local file input**: timestamp badges open an embedded `<video>` overlay and seek via JS (no external URL to link to); local input requires an ASR backend or `--transcript` (spec §9, §10).
 
-Planned skill layout (does not exist yet):
+Skill layout (implemented at repo root; vertical-slice scope per SKILL.md):
 ```
 video2slides/
 ├── SKILL.md            # orchestration contract: precheck → fetch → signals → analyze → select frames → render

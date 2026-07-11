@@ -1,7 +1,7 @@
 [project]
 name = "video2slide"
 version = "0.1.0"
-description = "Add your description here"
+description = "video2slides:把在线视频转为 frontend-slides HTML 导航索引的 Claude Code skill(开发仓)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
