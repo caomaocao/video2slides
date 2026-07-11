@@ -221,7 +221,7 @@ def test_finalize_names_by_node_and_reuses_direct_url(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(frames, "_direct_url", lambda *a, **k: calls.append(1) or "fake://url")
     monkeypatch.setattr(frames, "grab_final_frame",
-                        lambda url, t, out: Path(out).write_bytes(b"hi"))
+                        lambda url, t, out, referer=None: Path(out).write_bytes(b"hi"))
     rep = frames.finalize(work, cookies=None)
     assert rep["done"] == 2 and rep["degraded"] == 0
     out = common.load_json(common.wp(work, "storyboard"))
