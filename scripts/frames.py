@@ -282,11 +282,19 @@ def _direct_url(source: dict, cookies: str | None) -> str:
     return run(cmd + [source["canonical_url"]], timeout=120).splitlines()[0]
 
 
-def grab_final_frame(direct_url: str, t: float, out: Path) -> None:
+# B 站 CDN 直链要求 Referer 头,ffmpeg 裸拉 403(2026-07-11 验收 #11 实测);按平台注册
+PLATFORM_REFERER = {"bilibili": "https://www.bilibili.com/"}
+_FFMPEG_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+
+
+def grab_final_frame(direct_url: str, t: float, out: Path, referer: str | None = None) -> None:
     """按时间戳从高清直链单帧抽取(定稿懒抓,只抓真正上页的帧,spec §8.4)。"""
     out.parent.mkdir(parents=True, exist_ok=True)
-    run(["ffmpeg", "-y", "-v", "error", "-ss", f"{t:.3f}", "-i", direct_url,
-         "-frames:v", "1", "-q:v", "2", out], timeout=300)
+    cmd = ["ffmpeg", "-y", "-v", "error"]
+    if referer:
+        cmd += ["-headers", f"Referer: {referer}\r\n", "-user_agent", _FFMPEG_UA]
+    run(cmd + ["-ss", f"{t:.3f}", "-i", direct_url, "-frames:v", "1", "-q:v", "2", out],
+        timeout=300)
 
 
 def finalize(work: Path, cookies: str | None) -> dict:
@@ -301,16 +309,17 @@ def finalize(work: Path, cookies: str | None) -> dict:
     todo = [(nd, m) for nd in _walk_outline(sb["outline"]) for m in (nd.get("media") or [])
             if m.get("type") == "frame" and m.get("on_page") and not m.get("finalized")]
     rep = {"done": 0, "degraded": 0}
+    referer = PLATFORM_REFERER.get(meta["source"].get("platform"))
     url = None
     for nd, m in todo:
         out = assets / f"final_{nd['id']}_{m['t']:.1f}.jpg"
         try:
             url = url or _direct_url(meta["source"], cookies)
-            grab_final_frame(url, m["t"], out)
+            grab_final_frame(url, m["t"], out, referer=referer)
         except RuntimeError:
             try:
                 url = _direct_url(meta["source"], cookies)      # 直链过期:重取一次(spec §8.4)
-                grab_final_frame(url, m["t"], out)
+                grab_final_frame(url, m["t"], out, referer=referer)
             except RuntimeError:
                 m.update(final_path=m["proxy_path"], finalized=True, quality_limited=True)
                 rep["degraded"] += 1

@@ -229,3 +229,15 @@ def test_finalize_names_by_node_and_reuses_direct_url(tmp_path, monkeypatch):
     assert out["outline"][1]["media"][0]["final_path"].endswith("final_2_3.0.jpg")
     assert len(calls) == 1                                        # 直链复用
     assert out["outline"][1]["media"][1].get("finalized") is False  # clip 不处理
+
+
+def test_grab_final_frame_referer_header(monkeypatch, tmp_path):
+    """B 站 CDN 直链需 Referer 头(裸拉 403,验收 #11 实测);无 referer 时不加头。"""
+    seen = {}
+    monkeypatch.setattr(frames, "run",
+                        lambda cmd, timeout=300: seen.update(cmd=[str(c) for c in cmd]))
+    frames.grab_final_frame("http://x/v.m4s", 1.0, tmp_path / "o.jpg",
+                            referer="https://www.bilibili.com/")
+    assert any("Referer: https://www.bilibili.com/" in c for c in seen["cmd"])
+    frames.grab_final_frame("http://x/v.m4s", 1.0, tmp_path / "o2.jpg")
+    assert not any("Referer" in c for c in seen["cmd"])
