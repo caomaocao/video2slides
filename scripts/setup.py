@@ -11,8 +11,10 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
-from common import emit
+from common import emit, load_env_config
+from transcribe import PRESETS, resolve_asr_config
 
 _VER_RE = re.compile(r"(\d+)\.(\d+)")
 
@@ -43,6 +45,26 @@ def probe() -> dict:
     return res
 
 
+def check_asr() -> tuple[bool, str]:
+    """按所配 ASR 后端校验可用性(spec §10.2 exit 3)。不联网探活,key 有效性由首次调用报错诊断。"""
+    try:
+        cfg = resolve_asr_config(load_env_config())
+    except ValueError as e:
+        return False, str(e)
+    if cfg["family"] == "none":
+        return True, "ASR_BACKEND=none(keyless 帧-only 允许)"
+    if cfg["family"] == "funasr":
+        py = Path(cfg["funasr_venv"]).expanduser() / "bin" / "python"
+        if not py.exists():
+            return False, f"FUNASR_VENV 无效(缺 {py})"
+        r = subprocess.run([str(py), "-c", "import funasr"], capture_output=True, timeout=60)
+        return (r.returncode == 0,
+                "funasr 可用" if r.returncode == 0 else "funasr 导入失败(venv 内未安装?)")
+    if not cfg["key"]:
+        return False, f"缺 {PRESETS[cfg['backend']]['key_env']}(写入 ~/.config/video2slides/.env)"
+    return True, f"{cfg['backend']} key 就绪"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
@@ -50,8 +72,11 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     p = probe()
+    # 先校验 ASR 可用性(提前判定,便于 JSON 中一并呈现)
+    asr_ok, asr_msg = check_asr()
     if args.json:
         # --json 模式:stdout 只输出纯 JSON,状态由 JSON 内容 + exit code 承载
+        p["asr"] = {"ok": asr_ok, "detail": asr_msg}
         print(json.dumps(p, ensure_ascii=False, indent=1))
     missing = [k for k in ("ffmpeg", "ffprobe", "yt_dlp") if not p[k]["found"]]
     if missing:
@@ -59,6 +84,10 @@ def main(argv=None) -> int:
             names = ", ".join(m.replace("_", "-") for m in missing)
             emit(f"缺必装二进制: {names}", "macOS: brew install ffmpeg yt-dlp")
         return 2
+    if not asr_ok:
+        if not args.check and not args.json:
+            emit(f"ASR 后端不可用:{asr_msg}", "可 ASR_BACKEND=none 继续(帧-only,质量受限)")
+        return 3
     if not p["tesseract"]["found"]:
         if not args.check and not args.json:
             emit("tesseract 缺失:文字密度打分降级为边缘密度代理(不阻塞)")
