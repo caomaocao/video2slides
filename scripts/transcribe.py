@@ -275,7 +275,11 @@ def run_cli(argv=None) -> int:
     meta = load_json(wp(work, "meta"))
     sub = meta.get("subtitle")
     if not sub:
-        cfg = resolve_asr_config(load_env_config())
+        try:
+            cfg = resolve_asr_config(load_env_config())
+        except ValueError as e:
+            emit(f"ASR 配置无效:{e}")
+            return 3
         if cfg["family"] == "none":
             emit("无字幕轨且 ASR_BACKEND=none——配置 funasr/mimo/qwen 等后端,或提供 --transcript(spec §10.1)")
             return 3
@@ -287,16 +291,20 @@ def run_cli(argv=None) -> int:
             emit("缺 .work/audio.mp3——先跑 fetch.py(无字幕轨时会自动抽音频轨)")
             return 3
         failed = 0
-        if cfg["family"] == "funasr":
-            raw = _asr_funasr(audio, cfg)
-        else:
-            duration = meta["duration"] or ffprobe_duration(audio)
-            spans = plan_chunks(detect_silences(audio), duration)
-            chunk_dir = work / "audio_chunks"
-            chunks = [(cut_chunk(audio, t0, t1, chunk_dir / f"c_{i:03d}.mp3"), t0, t1)
-                      for i, (t0, t1) in enumerate(spans)]
-            fam = _asr_transcriptions if cfg["family"] == "transcriptions" else _asr_chat
-            raw, failed = fam(chunks, cfg)
+        try:
+            if cfg["family"] == "funasr":
+                raw = _asr_funasr(audio, cfg)
+            else:
+                duration = meta.get("duration") or ffprobe_duration(audio)
+                spans = plan_chunks(detect_silences(audio), duration)
+                chunk_dir = work / "audio_chunks"
+                chunks = [(cut_chunk(audio, t0, t1, chunk_dir / f"c_{i:03d}.mp3"), t0, t1)
+                          for i, (t0, t1) in enumerate(spans)]
+                fam = _asr_transcriptions if cfg["family"] == "transcriptions" else _asr_chat
+                raw, failed = fam(chunks, cfg)
+        except RuntimeError as e:
+            emit(f"ASR 后端执行失败:{e}")
+            return 3
         if not raw:
             emit("ASR 产出 0 段——全部块失败或音频异常,不落盘")
             return 1

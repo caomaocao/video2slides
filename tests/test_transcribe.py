@@ -335,3 +335,16 @@ def test_cli_asr_funasr_path(tmp_path, monkeypatch):
                         lambda audio, cfg: [{"t_start": 0.0, "t_end": 5.0, "text": "句"}])
     assert transcribe.run_cli(["--work", str(work)]) == 0
     assert common.load_json(common.wp(work, "transcript"))["source"] == "asr:funasr"
+
+
+def test_cli_asr_invalid_config_returns_3(tmp_path, monkeypatch):
+    """ASR_BACKEND 拼错时给指引并 return 3,不裸 traceback。"""
+    work = _prep_asr_work(tmp_path, monkeypatch, backend="whisperx-typo")
+    assert transcribe.run_cli(["--work", str(work)]) == 3
+
+
+def test_cli_asr_backend_runtime_error_returns_3(tmp_path, monkeypatch):
+    """默认 funasr 而 venv 缺失(未配置首跑)时给指引并 return 3。"""
+    work = _prep_asr_work(tmp_path, monkeypatch, backend="funasr")
+    monkeypatch.setenv("FUNASR_VENV", str(tmp_path / "nope"))
+    assert transcribe.run_cli(["--work", str(work)]) == 3
