@@ -203,10 +203,10 @@ def _asr_chat(chunks: list[tuple[Path, float, float]], cfg: dict) -> tuple[list[
         body = json.dumps(_chat_payload(cfg, b64)).encode("utf-8")
         try:
             resp = _with_retry(lambda: _http_post(url, headers, body))
-        except RuntimeError:
-            failed += 1
+            text = ((resp.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        except (RuntimeError, AttributeError, KeyError, TypeError, IndexError):
+            failed += 1                        # 网络/畸形形状统一按块失败,不击穿批次
             continue
-        text = ((resp.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
         if not text.strip():
             failed += 1
             continue

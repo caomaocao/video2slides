@@ -230,3 +230,26 @@ def test_asr_chat_empty_content_and_oversize(tmp_path, monkeypatch):
     big = tmp_path / "big.mp3"; big.write_bytes(b"z" * (8 * 1024 * 1024))   # b64 后 >10MB
     segs2, failed2 = transcribe._asr_chat([(big, 0.0, 45.0)], _cfg_chat())
     assert failed2 == 1                                        # 超限护栏
+
+
+def test_asr_chat_malformed_resp_shapes_count_failed(tmp_path, monkeypatch):
+    """合法 JSON 但形状非常规(None/数组/message 非 dict)按块失败,不穿透、不丢已收块。"""
+    good = {"choices": [{"message": {"content": "好块"}}]}
+    responses = [good, None, [], {"choices": [{"message": "oops"}]}, {"choices": {"weird": 1}}]
+    calls = {"i": -1}
+
+    def fake_post(url, headers, body, timeout=300):
+        # 畸形形状是"成功返回",不抛 RuntimeError → _with_retry 首次即返回,每块恰一次调用
+        calls["i"] += 1
+        return responses[calls["i"]]
+
+    monkeypatch.setattr(transcribe, "_http_post", fake_post)
+    files = []
+    for i in range(5):
+        f = tmp_path / f"c{i}.mp3"; f.write_bytes(b"x"); files.append(f)
+    chunks = [(files[i], i * 10.0, (i + 1) * 10.0) for i in range(5)]
+    segs, failed = transcribe._asr_chat(chunks, {
+        "backend": "qwen", "family": "chat", "base": "https://b/v1",
+        "model": "m", "key": "k", "language": "auto", "asr_options": False})
+    assert failed == 4
+    assert segs == [{"t_start": 0.0, "t_end": 10.0, "text": "好块"}]   # 首块保留
