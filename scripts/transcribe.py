@@ -179,6 +179,41 @@ def _asr_transcriptions(chunks: list[tuple[Path, float, float]], cfg: dict) -> t
     return segments, failed
 
 
+def _chat_payload(cfg: dict, b64: str) -> dict:
+    """chat 家族请求体(mimo/qwen 同形,实测 2026-07-11 两家文档):音频 base64 data URL 进 messages。"""
+    payload = {"model": cfg["model"],
+               "messages": [{"role": "user", "content": [
+                   {"type": "input_audio",
+                    "input_audio": {"data": f"data:audio/mpeg;base64,{b64}"}}]}]}
+    if cfg.get("asr_options"):
+        payload["asr_options"] = {"language": cfg["language"]}
+    return payload
+
+
+def _asr_chat(chunks: list[tuple[Path, float, float]], cfg: dict) -> tuple[list[dict], int]:
+    """chat-completions 式端点:无原生时间戳,每块文本贴块窗 [t0,t1](切片2设计 §3)。"""
+    segments, failed = [], 0
+    url = f"{cfg['base']}/chat/completions"
+    headers = {"Authorization": f"Bearer {cfg['key']}", "Content-Type": "application/json"}
+    for path, t0, t1 in chunks:
+        b64 = base64.b64encode(Path(path).read_bytes()).decode("ascii")
+        if len(b64) > CHAT_MAX_B64:
+            failed += 1                        # 45s@64kbps 远低于上限,触发即为异常块
+            continue
+        body = json.dumps(_chat_payload(cfg, b64)).encode("utf-8")
+        try:
+            resp = _with_retry(lambda: _http_post(url, headers, body))
+        except RuntimeError:
+            failed += 1
+            continue
+        text = ((resp.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        if not text.strip():
+            failed += 1
+            continue
+        segments.append({"t_start": t0, "t_end": t1, "text": text.strip()})
+    return segments, failed
+
+
 def _parse_silences(stderr_text: str) -> list[float]:
     """silencedetect 输出 → 静音区间中点列表(升序)。"""
     mids, start = [], None

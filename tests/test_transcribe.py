@@ -185,3 +185,48 @@ def test_asr_transcriptions_malformed_segment_counts_failed(tmp_path, monkeypatc
         "backend": "groq", "family": "transcriptions", "base": "https://b/v1",
         "model": "m", "key": "k", "language": "auto", "asr_options": False})
     assert failed == 1 and segs == []
+
+
+def _cfg_chat(asr_options=False):
+    return {"backend": "qwen", "family": "chat", "base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "model": "qwen3-asr-flash", "key": "sk-c", "language": "auto", "asr_options": asr_options}
+
+
+def test_chat_payload_shapes():
+    p = transcribe._chat_payload(_cfg_chat(False), "QUJD")
+    assert p["model"] == "qwen3-asr-flash"
+    au = p["messages"][0]["content"][0]["input_audio"]["data"]
+    assert au == "data:audio/mpeg;base64,QUJD"
+    assert "asr_options" not in p
+    p2 = transcribe._chat_payload(_cfg_chat(True), "QUJD")
+    assert p2["asr_options"] == {"language": "auto"}          # mimo 需要
+
+
+def test_asr_chat_chunk_level_segments(tmp_path, monkeypatch):
+    import json as _json
+    resp = _json.loads((FIX / "asr_chat_resp.json").read_text(encoding="utf-8"))
+    seen = []
+    monkeypatch.setattr(transcribe, "_http_post",
+                        lambda url, headers, body, timeout=300: (seen.append((url, _json.loads(body))), resp)[1])
+    c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"abc")
+    c2 = tmp_path / "c2.mp3"; c2.write_bytes(b"def")
+    segs, failed = transcribe._asr_chat([(c1, 0.0, 45.0), (c2, 45.0, 83.0)], _cfg_chat())
+    assert failed == 0
+    assert segs == [
+        {"t_start": 0.0, "t_end": 45.0, "text": "这里是切块转写出来的整段文本"},
+        {"t_start": 45.0, "t_end": 83.0, "text": "这里是切块转写出来的整段文本"},
+    ]
+    url, payload = seen[0]
+    assert url.endswith("/chat/completions")
+    assert payload["messages"][0]["content"][0]["type"] == "input_audio"
+
+
+def test_asr_chat_empty_content_and_oversize(tmp_path, monkeypatch):
+    empty = {"choices": [{"message": {"content": "  "}}]}
+    monkeypatch.setattr(transcribe, "_http_post", lambda *a, **k: empty)
+    c1 = tmp_path / "c1.mp3"; c1.write_bytes(b"x")
+    segs, failed = transcribe._asr_chat([(c1, 0.0, 45.0)], _cfg_chat())
+    assert failed == 1 and segs == []                          # 空 content 记失败
+    big = tmp_path / "big.mp3"; big.write_bytes(b"z" * (8 * 1024 * 1024))   # b64 后 >10MB
+    segs2, failed2 = transcribe._asr_chat([(big, 0.0, 45.0)], _cfg_chat())
+    assert failed2 == 1                                        # 超限护栏

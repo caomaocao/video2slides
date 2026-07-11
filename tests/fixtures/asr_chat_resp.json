@@ -1,0 +1,3 @@
+{"id": "x", "object": "chat.completion", "model": "mimo-v2.5-asr",
+ "choices": [{"index": 0, "finish_reason": "stop",
+              "message": {"role": "assistant", "content": "这里是切块转写出来的整段文本"}}]}
