@@ -288,3 +288,50 @@ def test_asr_funasr_nonjson_stdout_is_diagnosable(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="非 JSON"):
         transcribe._asr_funasr(tmp_path / "a.mp3",
                                {"funasr_venv": str(tmp_path / "venv"), "language": "zh"})
+
+
+def _prep_asr_work(tmp_path, monkeypatch, backend="qwen"):
+    import common
+    work = tmp_path / ".work"; work.mkdir()
+    common.save_json(common.wp(work, "meta"), {"language": None, "duration": 100.0,
+                                               "title": "t", "source": {"platform": "bilibili"}})
+    (common.wp(work, "audio")).write_bytes(b"fake-mp3")
+    monkeypatch.setenv("ASR_BACKEND", backend)
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-x")
+    return work
+
+
+def test_cli_asr_chat_path(tmp_path, monkeypatch):
+    import common
+    work = _prep_asr_work(tmp_path, monkeypatch)
+    monkeypatch.setattr(transcribe, "detect_silences", lambda audio: [43.0])
+    monkeypatch.setattr(transcribe, "cut_chunk", lambda a, t0, t1, out: (out.parent.mkdir(parents=True, exist_ok=True), out.write_bytes(b"c"), out)[2])
+    monkeypatch.setattr(transcribe, "_asr_chat",
+                        lambda chunks, cfg: ([{"t_start": 0.0, "t_end": 43.0, "text": "块一"},
+                                              {"t_start": 43.0, "t_end": 100.0, "text": "块二"}], 1))
+    assert transcribe.run_cli(["--work", str(work)]) == 0
+    t = common.load_json(common.wp(work, "transcript"))
+    assert t["source"] == "asr:qwen"
+    assert [s["id"] for s in t["segments"]] == [0, 1]
+
+
+def test_cli_asr_none_returns_3(tmp_path, monkeypatch):
+    work = _prep_asr_work(tmp_path, monkeypatch, backend="none")
+    assert transcribe.run_cli(["--work", str(work)]) == 3
+
+
+def test_cli_asr_missing_audio_returns_3(tmp_path, monkeypatch):
+    import common
+    work = _prep_asr_work(tmp_path, monkeypatch)
+    common.wp(work, "audio").unlink()
+    assert transcribe.run_cli(["--work", str(work)]) == 3
+
+
+def test_cli_asr_funasr_path(tmp_path, monkeypatch):
+    import common
+    work = _prep_asr_work(tmp_path, monkeypatch, backend="funasr")
+    monkeypatch.setenv("FUNASR_VENV", "/tmp/whatever")
+    monkeypatch.setattr(transcribe, "_asr_funasr",
+                        lambda audio, cfg: [{"t_start": 0.0, "t_end": 5.0, "text": "句"}])
+    assert transcribe.run_cli(["--work", str(work)]) == 0
+    assert common.load_json(common.wp(work, "transcript"))["source"] == "asr:funasr"

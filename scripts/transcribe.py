@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from common import emit, ffprobe_duration, is_fresh, load_json, run, save_json, wp
+from common import emit, ffprobe_duration, is_fresh, load_env_config, load_json, run, save_json, wp
 
 _TS = re.compile(r"(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})")
 _TAG = re.compile(r"<[^>]+>")
@@ -275,8 +275,38 @@ def run_cli(argv=None) -> int:
     meta = load_json(wp(work, "meta"))
     sub = meta.get("subtitle")
     if not sub:
-        emit("meta.json 无 subtitle——先跑 fetch.py(或走 ASR,切片外)")
-        return 3
+        cfg = resolve_asr_config(load_env_config())
+        if cfg["family"] == "none":
+            emit("无字幕轨且 ASR_BACKEND=none——配置 funasr/mimo/qwen 等后端,或提供 --transcript(spec §10.1)")
+            return 3
+        audio = wp(work, "audio")
+        if not args.force and is_fresh(out_p, audio):
+            emit(f"transcript: {out_p}(已最新,跳过)", next_hint=f"python scripts/signals.py --work {work}")
+            return 0
+        if not audio.exists():
+            emit("缺 .work/audio.mp3——先跑 fetch.py(无字幕轨时会自动抽音频轨)")
+            return 3
+        failed = 0
+        if cfg["family"] == "funasr":
+            raw = _asr_funasr(audio, cfg)
+        else:
+            duration = meta["duration"] or ffprobe_duration(audio)
+            spans = plan_chunks(detect_silences(audio), duration)
+            chunk_dir = work / "audio_chunks"
+            chunks = [(cut_chunk(audio, t0, t1, chunk_dir / f"c_{i:03d}.mp3"), t0, t1)
+                      for i, (t0, t1) in enumerate(spans)]
+            fam = _asr_transcriptions if cfg["family"] == "transcriptions" else _asr_chat
+            raw, failed = fam(chunks, cfg)
+        if not raw:
+            emit("ASR 产出 0 段——全部块失败或音频异常,不落盘")
+            return 1
+        segs = [{"id": i, **s} for i, s in enumerate(raw)]
+        save_json(out_p, {"language": meta.get("language"),
+                          "source": f"asr:{cfg['backend']}", "segments": segs})
+        gap = f",失败块 {failed}(留缺口)" if failed else ""
+        emit(f"transcript: {out_p}({len(segs)} 段,asr:{cfg['backend']}{gap})",
+             next_hint=f"python scripts/signals.py --work {work}")
+        return 0
     sub_p = Path(sub["path"])
     if not args.force and is_fresh(out_p, sub_p):
         emit(f"transcript: {out_p}(已最新,跳过)", next_hint="python scripts/signals.py --work " + str(work))
