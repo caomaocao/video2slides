@@ -9,8 +9,10 @@ from pathlib import Path
 
 from common import emit, load_json, rgb_signature, save_json, sig_diff_ratio, wp
 
-_PUNCT = re.compile(r"[\s,，。、.!！?？:：;；\"'“”‘’()（）\[\]【】《》<>—\-…·]+")
+_PUNCT = re.compile(r"[\s,，。、.!！?？:：;；\"'""''()（）\[\]【】《》<>—\-…·]+")
 REQUIRED_NODE_KEYS = ("id", "title", "t_start", "t_end", "evidence")
+# 切片3 分章校验容差:CH_L1_TOL 容纳 chat 家族 45s 块级时间戳的边界微调(最坏 22.5s)
+CH_EDGE_TOL, CH_SEAM_TOL, CH_L1_TOL = 1.0, 0.5, 30.0
 
 
 def norm_text(s: str) -> str:
@@ -65,6 +67,30 @@ def validate(sb: dict, transcript: dict, duration: float) -> dict:
                 r["schema_errors"].append(f"节点 {nid} proxy_path 不存在: {m['proxy_path']}")
     r["ok"] = not (r["schema_errors"] or r["quote_failures"] or r["time_errors"])
     return r
+
+
+def validate_chapter_plan(plan: dict, outline: list, duration: float) -> list[str]:
+    """分章校验(spec 切片3 §4,仅 chapter_plan 存在时启用):章区间首尾相接覆盖全片;
+    storyboard level-1 与章一一对应(按时间窗,容差 CH_L1_TOL)。"""
+    errs: list[str] = []
+    chs = plan.get("chapters") or []
+    if not chs:
+        return ["chapter_plan.chapters 为空"]
+    if abs(chs[0]["t_start"]) > CH_EDGE_TOL:
+        errs.append(f"首章 t_start={chs[0]['t_start']} 未从 0 开始")
+    if abs(chs[-1]["t_end"] - duration) > CH_EDGE_TOL:
+        errs.append(f"末章 t_end={chs[-1]['t_end']} 未覆盖时长 {duration}")
+    for a, b in zip(chs, chs[1:]):
+        if abs(a["t_end"] - b["t_start"]) > CH_SEAM_TOL:
+            errs.append(f"章 {a.get('idx')}→{b.get('idx')} 有缝/重叠: {a['t_end']} vs {b['t_start']}")
+    l1 = outline or []
+    if len(l1) != len(chs):
+        errs.append(f"storyboard level-1 数({len(l1)})与 chapter_plan 章数({len(chs)})不一致")
+        return errs
+    for ch, nd in zip(chs, l1):
+        if abs(nd["t_start"] - ch["t_start"]) > CH_L1_TOL or abs(nd["t_end"] - ch["t_end"]) > CH_L1_TOL:
+            errs.append(f"章 {ch.get('idx')} 与 level-1 节点 {nd.get('id')} 时间窗偏差超 {CH_L1_TOL}s")
+    return errs
 
 
 def dedup_across_nodes(sb: dict, candidates: list[dict]) -> dict:
@@ -131,6 +157,13 @@ def main() -> int:
 
     if args.cmd == "validate":
         r = validate(sb, load_json(wp(work, "transcript")), load_json(wp(work, "meta"))["duration"])
+        plan_p = wp(work, "chapter_plan")
+        if plan_p.exists():                        # 可选制品:缺失时行为与现状一致(切片3)
+            ch_errs = validate_chapter_plan(load_json(plan_p), sb.get("outline") or [],
+                                            load_json(wp(work, "meta"))["duration"])
+            if ch_errs:
+                r["chapter_errors"] = ch_errs
+                r["ok"] = False
         emit(f"validate: {'通过' if r['ok'] else '不通过'}",
              *(f"  {k}: {v}" for k, v in r.items() if k != "ok" and v))
         return 0 if r["ok"] else 5

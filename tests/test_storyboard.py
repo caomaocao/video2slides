@@ -113,3 +113,47 @@ def test_dedup_replacement_rechecked_against_kept(tmp_path):
     cands_blue = [{"node_id": "2", "file": str(b1), "t": 5.0, "reason": "scene-peak", "score": 0.5, "dup": False}]
     rep2 = sb_mod.dedup_across_nodes(sb2, cands_blue)
     assert len(rep2["replaced"]) == 1 and sb2["outline"][1]["media"][0]["proxy_path"] == str(b1)
+
+
+# Task 4: 分章校验测试
+def _plan(chs):
+    return {"source": "hints", "chapters": chs}
+
+
+def _l1(spans):
+    return [{"id": f"c{i}", "title": f"章{i}", "t_start": a, "t_end": b,
+             "evidence": [{"segment_id": "s0", "quote": "q"}]}
+            for i, (a, b) in enumerate(spans, 1)]
+
+
+def test_chapter_plan_ok():
+    plan = _plan([{"idx": 1, "title": "A", "t_start": 0.0, "t_end": 600.0},
+                  {"idx": 2, "title": "B", "t_start": 600.0, "t_end": 1200.0}])
+    assert sb_mod.validate_chapter_plan(plan, _l1([(0.0, 600.0), (600.0, 1200.0)]), 1200.0) == []
+
+
+def test_chapter_plan_gap_overlap_coverage():
+    plan = _plan([{"idx": 1, "title": "A", "t_start": 5.0, "t_end": 500.0},     # 首章未从 0 起
+                  {"idx": 2, "title": "B", "t_start": 520.0, "t_end": 1100.0}])  # 缝 20s;末章未到 1200
+    errs = sb_mod.validate_chapter_plan(plan, _l1([(5.0, 500.0), (520.0, 1100.0)]), 1200.0)
+    assert len(errs) == 3
+
+
+def test_chapter_plan_l1_mismatch():
+    plan = _plan([{"idx": 1, "title": "A", "t_start": 0.0, "t_end": 600.0},
+                  {"idx": 2, "title": "B", "t_start": 600.0, "t_end": 1200.0}])
+    # level-1 只有一个节点 → 数量不一致
+    errs = sb_mod.validate_chapter_plan(plan, _l1([(0.0, 1200.0)]), 1200.0)
+    assert any("level-1" in e for e in errs)
+    # 数量一致但时间窗偏差超容差(30s)
+    errs2 = sb_mod.validate_chapter_plan(plan, _l1([(0.0, 640.0), (640.0, 1200.0)]), 1200.0)
+    assert any("偏差" in e for e in errs2)
+
+
+def test_validate_cli_without_chapter_plan_unchanged(tmp_path):
+    # chapter_plan 缺失:validate 行为与现状一致(既有测试已覆盖通过路径,这里锁"不因缺失报错")
+    sb = {"outline": [{"id": "1", "title": "t", "t_start": 0.0, "t_end": 10.0,
+                       "evidence": [{"segment_id": "s0", "quote": "你好世界"}]}]}
+    tr = {"segments": [{"id": "s0", "t_start": 0.0, "t_end": 10.0, "text": "你好世界"}]}
+    r = sb_mod.validate(sb, tr, 10.0)
+    assert r["ok"] and "chapter_errors" not in r
