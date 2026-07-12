@@ -9,7 +9,7 @@ from pathlib import Path
 
 from common import emit, load_json, rgb_signature, save_json, sig_diff_ratio, wp
 
-_PUNCT = re.compile(r"[\s,，。、.!！?？:：;；\"'""''()（）\[\]【】《》<>—\-…·]+")
+_PUNCT = re.compile(r"[\s,，。、.!！?？:：;；\"'“”‘’()（）\[\]【】《》<>—\-…·]+")
 REQUIRED_NODE_KEYS = ("id", "title", "t_start", "t_end", "evidence")
 # 切片3 分章校验容差:CH_L1_TOL 容纳 chat 家族 45s 块级时间戳的边界微调(最坏 22.5s)
 CH_EDGE_TOL, CH_SEAM_TOL, CH_L1_TOL = 1.0, 0.5, 30.0
@@ -156,11 +156,11 @@ def main() -> int:
     sb = load_json(wp(work, "storyboard"))
 
     if args.cmd == "validate":
-        r = validate(sb, load_json(wp(work, "transcript")), load_json(wp(work, "meta"))["duration"])
+        duration = load_json(wp(work, "meta"))["duration"]
+        r = validate(sb, load_json(wp(work, "transcript")), duration)
         plan_p = wp(work, "chapter_plan")
         if plan_p.exists():                        # 可选制品:缺失时行为与现状一致(切片3)
-            ch_errs = validate_chapter_plan(load_json(plan_p), sb.get("outline") or [],
-                                            load_json(wp(work, "meta"))["duration"])
+            ch_errs = validate_chapter_plan(load_json(plan_p), sb.get("outline") or [], duration)
             if ch_errs:
                 r["chapter_errors"] = ch_errs
                 r["ok"] = False

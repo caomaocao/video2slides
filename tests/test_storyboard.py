@@ -76,6 +76,12 @@ def test_aggregate_media_topk_from_leaves():
     assert [m["proxy_path"] for m in agg["1"]] == ["b.jpg"]     # 取子树最高分
 
 
+def test_norm_text_strips_curly_quotes_directly():
+    # 防回归:直接断言弯引号(U+201C/201D)被剥离,不经过 quote_ok 的 fuzzy 兜底
+    # (Task 4 曾把 _PUNCT 里的弯引号误改成直引号,fuzzy 兜底掩盖了该回归)
+    assert sb_mod.norm_text("他说“反向传播”其实很简单（示例）") == "他说反向传播其实很简单示例"
+
+
 def test_quote_ok_strips_cjk_curly_quotes_and_fullwidth_parens():
     assert sb_mod.quote_ok("反向传播其实很简单", "他说“反向传播”其实很简单（示例）")
     assert sb_mod.quote_ok("模型一次能处理的最大信息量", "模型一次能处理的最大信息量，就叫上下文窗口！")
