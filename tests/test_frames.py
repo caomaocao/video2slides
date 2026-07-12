@@ -52,6 +52,39 @@ def test_plan_candidates_skips_trailing_edge_boundary():
     assert len(cs) == 1 and cs[0]["reason"] == "window-midpoint"
 
 
+def test_plan_candidates_wide_window_covers_whole_window():
+    # 135s 宽窗(#2 3.1 实测形态):页边界全挤在窗口头部 → 旧逻辑候选全聚前 15s;
+    # 新逻辑 6 槽均匀采样,候选必须覆盖到窗口后半段
+    leaf = {"id": "3.1", "win": (341.0, 476.0)}
+    boundaries = [{"n": i, "t": 341.0 + i * 3, "score": 0.5} for i in range(5)]  # 341-353s 密集峰
+    cands = frames.plan_candidates(leaf, boundaries, duration=1200.0)
+    assert len(cands) == frames.PER_POINT_CAP
+    ts = [c["t"] for c in cands]
+    assert max(ts) > 341.0 + (476.0 - 341.0) * 0.7          # 覆盖进入最后 30%
+    assert {c["reason"] for c in cands} <= {"slot-peak", "slot-midpoint"}
+    # 头部槽内有峰 → slot-peak(峰后偏移);尾部无峰槽 → slot-midpoint
+    assert cands[0]["reason"] == "slot-peak"
+    # fixture 五峰同分(0.5),Python max() 同分取先 → 首槽命中 boundaries[0](t=341.0)
+    assert cands[0]["t"] == pytest.approx(boundaries[0]["t"] + frames.PEAK_OFFSET)
+    assert cands[-1]["reason"] == "slot-midpoint"
+
+
+def test_plan_candidates_narrow_window_unchanged():
+    # ≤90s 窗口:行为与现状逐字节一致(既有语义回归)
+    leaf = {"id": "x", "win": (100.0, 160.0)}
+    boundaries = [{"n": 0, "t": 120.0, "score": 0.8}]
+    cands = frames.plan_candidates(leaf, boundaries, duration=1200.0)
+    assert cands == [{"node_id": "x", "t": 120.0 + frames.PEAK_OFFSET,
+                      "reason": "scene-peak", "peak_score": 0.8}]
+
+
+def test_plan_candidates_wide_window_respects_t_max():
+    # 槽中点超出 t_max(窗尾 0.05s 裕量/视频末尾 0.1s)时不产该候选,总数可少于 cap
+    leaf = {"id": "y", "win": (0.0, 120.0)}
+    cands = frames.plan_candidates(leaf, [], duration=100.0)   # duration 100 < 窗尾 120
+    assert all(c["t"] <= 100.0 - 0.1 for c in cands)
+
+
 def test_t_to_frame_nearest():
     rows = [{"n": i, "t": i * 0.1, "score": 0} for i in range(100)]
     assert frames.t_to_frame(2.04, rows) == 20

@@ -15,6 +15,7 @@ PER_POINT_CAP = 6        # 每要点候选上限(去重前)
 MAX_BACK_EXPAND = 30.0   # 前扩上限:上一页边界太远则不扩
 DUP_RATIO = 0.10         # 判重:变化像素占比阈值
 TOP_K = 3                # 剪枝每要点 top-3
+WIDE_WINDOW = 90.0       # 切片3:窗口超此宽度改槽均匀采样,根治候选头部聚簇(#8/#2 两次确认)
 
 
 def align_window(t_start: float, t_end: float, boundaries: list[dict],
@@ -41,23 +42,28 @@ def align_window(t_start: float, t_end: float, boundaries: list[dict],
 
 def plan_candidates(leaf: dict, boundaries: list[dict], duration: float,
                     offset: float = PEAK_OFFSET, cap: int = PER_POINT_CAP) -> list[dict]:
-    """
-    规划候选时间戳:窗内每页边界产一个候选(峰后偏移),无边界则用窗中点。
-    窗尾放不下峰后稳定帧的边界不产候选——clamp 回边界前会拍到旧页,与
-    reason="scene-peak" 语义矛盾;该新页属于下一节点,由其窗口前扩覆盖。
-
-    args:
-        leaf: 叶节点，包含 {"id": str, "win": (t0, t1)}
-        boundaries: 页边界列表，每项 {"n": frame_no, "t": timestamp, "score": score}
-        duration: 视频总时长
-        offset: 峰后偏移(秒)，默认 0.7s
-        cap: 候选上限
-
-    returns:
-        候选列表，每项 {"node_id": str, "t": timestamp, "reason": str, "peak_score": float}
-    """
+    """规划候选时间戳。窄窗(≤WIDE_WINDOW):窗内每页边界产一个候选(峰后偏移),无边界用窗
+    中点——与切片2前行为完全一致。宽窗(>WIDE_WINDOW,长视频块级时间戳高发):均分 cap 个槽,
+    每槽取分数最高的页边界(峰后偏移,reason=slot-peak),无峰取槽中点(slot-midpoint)——
+    候选强制覆盖全窗,根治头部聚簇(切片3 §5b)。"""
     t0, t1 = leaf["win"]
     t_max = min(t1 - 0.05, duration - 0.1)
+    if t1 - t0 > WIDE_WINDOW:
+        slot_w = (t1 - t0) / cap
+        out = []
+        for i in range(cap):
+            s0, s1 = t0 + i * slot_w, t0 + (i + 1) * slot_w
+            peaks = [b for b in boundaries if s0 <= b["t"] < s1 and b["t"] + offset <= t_max]
+            if peaks:
+                b = max(peaks, key=lambda b: b["score"])
+                out.append({"node_id": leaf["id"], "t": b["t"] + offset,
+                            "reason": "slot-peak", "peak_score": b["score"]})
+            else:
+                mid = (s0 + s1) / 2
+                if mid <= t_max:
+                    out.append({"node_id": leaf["id"], "t": mid,
+                                "reason": "slot-midpoint", "peak_score": 0.0})
+        return out
     cands = [
         {"node_id": leaf["id"], "t": b["t"] + offset,
          "reason": "scene-peak", "peak_score": b["score"]}
