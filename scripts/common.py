@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -21,6 +22,8 @@ ARTIFACTS = {
     "probe_dir": "probe_frames",
     "candidates": "candidates.json",
     "sheets_dir": "sheets",
+    "chapter_hints": "chapter_hints.json",
+    "chapter_plan": "chapter_plan.json",
     "storyboard": "storyboard.json",
 }
 
@@ -109,3 +112,26 @@ def ffprobe_duration(path: Path | str) -> float:
     out = run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
                "-of", "csv=p=0", str(path)])
     return float(out.strip().splitlines()[0])
+
+
+_SIL_RE = re.compile(r"silence_(start|end): ([\d.]+)")
+SIL_ARGS = "silencedetect=noise=-35dB:d=0.4"
+
+
+def parse_silence_spans(stderr_text: str) -> list[tuple[float, float]]:
+    """silencedetect stderr → (start, end) 区间列表(升序);孤立 start(音频在静音中结束)丢弃。"""
+    spans, start = [], None
+    for kind, val in _SIL_RE.findall(stderr_text or ""):
+        if kind == "start":
+            start = float(val)
+        elif start is not None:
+            spans.append((start, float(val)))
+            start = None
+    return spans
+
+
+def detect_silence_spans(audio: Path | str) -> list[tuple[float, float]]:
+    """ffmpeg silencedetect 一遍音频解码取静音区间(切片3 划章信号;transcribe 切块共用同一参数)。"""
+    r = subprocess.run(["ffmpeg", "-v", "info", "-i", str(audio), "-af", SIL_ARGS,
+                        "-f", "null", "-"], capture_output=True, text=True, timeout=600)
+    return parse_silence_spans(r.stderr or "")

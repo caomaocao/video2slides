@@ -12,7 +12,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from common import emit, ffprobe_duration, is_fresh, load_env_config, load_json, run, save_json, wp
+from common import (detect_silence_spans, emit, ffprobe_duration, is_fresh, load_env_config, load_json,
+                    parse_silence_spans, run, save_json, wp)
 
 _TS = re.compile(r"(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})")
 _TAG = re.compile(r"<[^>]+>")
@@ -98,15 +99,12 @@ def dedup_cues(cues: list[dict]) -> list[dict]:
 
 
 # 切块初始值(切片2设计 §3)
-SIL_ARGS = "silencedetect=noise=-35dB:d=0.4"
 CHUNK_TARGET = 45.0
 CHUNK_HARD_MAX = 600.0
 
 # ASR 传输层常量
 TRANSCRIPTIONS_MAX_BYTES = 24 * 1024 * 1024   # groq 单请求上限(切片2设计 §2)
 CHAT_MAX_B64 = 10 * 1024 * 1024               # chat 家族 base64 后上限(两家实测一致)
-
-_SIL_RE = re.compile(r"silence_(start|end): ([\d.]+)")
 
 
 def _http_post(url: str, headers: dict, body: bytes, timeout: int = 300) -> dict:
@@ -238,21 +236,13 @@ def _asr_funasr(audio: Path, cfg: dict) -> list[dict]:
 
 
 def _parse_silences(stderr_text: str) -> list[float]:
-    """silencedetect 输出 → 静音区间中点列表(升序)。"""
-    mids, start = [], None
-    for kind, val in _SIL_RE.findall(stderr_text):
-        if kind == "start":
-            start = float(val)
-        elif start is not None:
-            mids.append((start + float(val)) / 2)
-            start = None
-    return mids
+    """silencedetect 输出 → 静音区间中点列表(升序)——由 common 的 span 解析派生。"""
+    return [(s + e) / 2 for s, e in parse_silence_spans(stderr_text)]
 
 
 def detect_silences(audio: Path) -> list[float]:
-    r = _sp.run(["ffmpeg", "-hide_banner", "-i", str(audio), "-af", SIL_ARGS, "-f", "null", "-"],
-                capture_output=True, text=True, timeout=1800)
-    return _parse_silences(r.stderr or "")
+    """静音中点列表(切块用);span 检测在 common(与切片3 划章信号共用一份 ffmpeg 参数)。"""
+    return [(s + e) / 2 for s, e in detect_silence_spans(audio)]
 
 
 def plan_chunks(silences: list[float], duration: float,

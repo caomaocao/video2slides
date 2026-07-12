@@ -54,3 +54,22 @@ def test_load_env_config_missing_file(tmp_path, monkeypatch):
     monkeypatch.setenv("ASR_BACKEND", "none")
     cfg = common.load_env_config(tmp_path / "nope.env")
     assert cfg["ASR_BACKEND"] == "none"
+
+
+def test_parse_silence_spans_pairs():
+    text = ("[silencedetect @ 0x0] silence_start: 10.5\n"
+            "[silencedetect @ 0x0] silence_end: 13.0 | silence_duration: 2.5\n"
+            "[silencedetect @ 0x0] silence_start: 100.0\n"
+            "[silencedetect @ 0x0] silence_end: 100.6 | silence_duration: 0.6\n")
+    assert common.parse_silence_spans(text) == [(10.5, 13.0), (100.0, 100.6)]
+
+
+def test_parse_silence_spans_unclosed_start_dropped():
+    # 音频在静音中结束:孤立 start 无 end,丢弃不配对
+    text = "[silencedetect @ 0x0] silence_start: 50.0\n"
+    assert common.parse_silence_spans(text) == []
+
+
+def test_artifacts_registers_chapter_hints_and_plan(tmp_path):
+    assert common.wp(tmp_path, "chapter_hints") == tmp_path / "chapter_hints.json"
+    assert common.wp(tmp_path, "chapter_plan") == tmp_path / "chapter_plan.json"
