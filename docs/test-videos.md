@@ -42,7 +42,7 @@
 1. **B 站字幕 = AI 字幕轨(`ai-zh`,SRT),必须登录 cookie 才可获取**;无 cookie 时 yt-dlp 只能看到弹幕(XML)轨。「有字幕免配置」对 B 站不成立:B 站 happy path = `--cookies-from-browser chrome`(免 key 但需登录态)或回退 ASR。→ spec §1.1、§10.3、§11 已修订
 2. **中文 YouTube 频道普遍没有自动字幕轨**(#1、#2 连 auto captions 都为 0)。ASR 路径不是边缘 fallback,是中文场景的主干之一
 3. **B 站无 cookie 实测可列到 1080p**(cookie 后解锁 2160/4K)——spec 原表述「≥720p 需登录」基于旧版 yt-dlp,实际下载可用性待实现期验证
-4. **烧录字幕(#1、#2)是信号层考验点**:底部字幕条逐句变化给 scene-score 叠加持续小抖动,可能把 slide-driven/cinematic 误判成 screen-recording。候选对策:探针阶段 crop 掉底部 ~15% 再算 score;或探针 contact sheet 仲裁时目视纠偏
+4. **烧录字幕是信号层考验点(实跑细化 2026-07-12)**:底部字幕条逐句变化给 scene-score 叠加持续小抖动。**但抬不抬尖峰取决于形态**——#1 funasr(PDF 慢滚讲义)实测烧录字幕**未**抬尖峰(内容靠慢滚变化、非硬切);#9b(talking-head 访谈烧录字幕)实测**会**抬小尖峰(锁定机位下 caption-text 变化即 scene delta),使 talking-head 数值落入 slide-driven 带。两种形态都靠探针 sheet 目验纠偏。候选对策:探针阶段 crop 掉底部 ~15% 再算 score;或目视仲裁
 5. **B 站 AI 字幕非全覆盖**:#15 即便带 cookie 也只有弹幕轨——存在无字幕轨的 B 站视频,ASR 需求独立于 cookie 问题存在
 6. **分 P 合集必须带 `?p=n` 定 P**:#11 是 187P 合集,不带 p 参数时 yt-dlp 逐 P 枚举 metadata(实测直接超时)。`fetch.py` 实现要点:先归一化 URL(缺省补 `p=1`)再调 yt-dlp
 7. **B 站 AI 字幕多语覆盖不均**:#16 有 6 语种(ai-zh/en/ja/es/pt/ar)、#5 四语、#6/#11 仅 zh、#15/#20-22 为零——疑与 up 主设置或视频体量相关,fetch 的轨选择优先级(视频语言精确匹配)已覆盖此差异
@@ -55,8 +55,10 @@
 | 字幕直取(YouTube 手动) | #3、#4、**#13** |
 | 字幕直取(YouTube 自动 en) | #12、#14 |
 | 字幕直取(B 站 ai-zh + cookie) | #5、#6、**#11**(#7、#8 待确认) |
-| ASR(api / funasr) | #1、#2、#9、#10、#15 |
-| `--transcript` 逃生门 | #9(短,适合人工准备转写) |
+| ASR·funasr(本地) | #1、#9(3支)、#27(实跑✅) |
+| ASR·chat 家族(qwen/mimo) | #21、#22(竖屏)、#2、#8、#15(实跑✅,长/横屏扩覆盖) |
+| ASR·transcriptions 家族(groq/openai/api) | 预设就位,尚无真跑 |
+| ~~`--transcript` 逃生门~~ | **未实现(P2)**——该 flag 不存在,勿在指引中引用 |
 | chapters 先验 | #3(11)、#6(9)、#8(5)、#12(19)、#13(5) |
 | heatmap 先验 | #2、#3、#12、#13 |
 | 弹幕密度先验 | #5–#8、#11、#15 |
@@ -117,6 +119,31 @@
 - **移交 frontend-slides**:`.slide` 派生类上覆盖 `position` 会击穿固定舞台堆叠(与已知 `display` 坑同源,该 skill 文档仅警示了 display)——待移交其坑位清单
 - **QA 缺口**:claude-in-chrome 拒绝 `file://` 导航,本地弹层「真实双击打开可跳播」未能自动化闭环(http.server 代测被跨源策略假阳性拦截),需真人双击复验
 
+## 切片 2 解锁批试产(2026-07-12,6 源并行,全部出品)
+
+切片 2 落地后,ASR 路径解锁的 6 个「无字幕→ASR」源并行试产,全部出 deck(实跑覆盖至 23/27)。ASR 分配:funasr 跑轻量本地/极短(#23/#9b/#9c),chat 家族跑在线长/横屏(qwen #2/#15、mimo #8),兼顾本地 CPU 负载与 API 覆盖扩展。
+
+| # | deck | 页/风格 | ASR | visual_form(目验) |
+|---|---|---|---|---|
+| #2 勇闯最穷州府 | poorstate_20260712 | 11 / Split Pastel | qwen 17块0失败83s | cinematic |
+| #8 世界杯现场 | worldcup_20260711 | 12 / Split Pastel | mimo 24块0失败65s | cinematic |
+| #15 Vibe Coding | vibecoding_20260712 | 10 / Notebook Tabs | qwen 17块0失败47s | talking-head(动画讲解) |
+| #23 摇杆改造Short | joystick_20260712 | 5 / (竖屏) | funasr 9段28s | cinematic |
+| #9b 松研科技 | songyan_20260712 | 10 / Paper&Ink | funasr 281段74s | talking-head |
+| #9c 从身价上亿 | fuzhai_20260712 | 9 / Paper&Ink | funasr 271段 | talking-head |
+
+**发现(逐条)**:
+
+1. **【脚本 bug·待修】fetch.py `normalize_url()` 不认 YouTube Shorts `/shorts/<id>` 路径**(#23):支持的输入类型却 ValueError 退出,已就地换 `watch?v=` canonical 绕过。建议增 `/shorts/` 识别分支(小改+可测)
+2. **【脚本算法·2 次独立确认】frames.py 候选头部聚簇**(#8、#2):非 slide-driven + 块级时间戳下叶子窗口宽(100–200s),`plan_candidates` 仅 scene-peak 产候选、`cands[:cap]` 按时序头切 6 个 → 候选全聚窗口**前 15s**,后半段无帧覆盖(#8 3.1 窗341–476候选仅338–356;#2 3.1 达135s后半段邦联战旗/议会史无候选)。宿主被迫跨 node 借帧或改配。建议非 slide-driven/宽窗口按**均匀采样**取候选。触 spec §8,切片 3/P2 料
+3. **【判据·再实证】RGB dedup 在 talking-head/访谈类高误判**:#15 动画讲解 **4/8=50%(迄今最高)**、#9c 5/8、#9b 1/8,均同背景同机位致 16×16 签名读作近重复,宿主复核全恢复。去重判据升级应**显式点名** talking-head/访谈类为高 FP 场景(不止"同版式讲义")
+4. **【visual_form 边界·P2】动画信息图讲解**(#15):卡通旁白+渐进图表+零硬切,数值指纹=talking-head(全程平曲线),实为**承载内容的 slide-driven** 素材。应覆写为信息主体大图版式(代理已正确处理),但"全程低"曲线≠真装饰性 talking-head——现有 whiteboard/录屏/实拍合并规则未覆盖此形态
+5. **【规则复现·扩展形态】块级时间戳窗口微调对 cinematic 同样需要**(#8 2.3、#2 两处):qwen/mimo 45s 块级预扩张系统性把最佳帧推到字面窗外,按 SKILL.md 规则微调相邻叶子边界回调即可(非仅访谈类)
+6. **【文档·::first-letter 坑扩展】**(#9c):首字放大坑不止阿拉伯数字,**纯数字类汉字(一/二/三/十)**同样糊(细笔画无字身,"一九九八年"→孤立横杠)。SKILL.md 指引应从"不以数字开头"推广到"不以数字或数字类汉字开头"
+7. **【鲁棒性·印证终审】mimo 后台转写疑网络挂起**(#8):首次挂后台 20+ 分钟 0%CPU 0 输出(疑单块 urlopen 挂起、300s×重试拖死),前台重跑 65s 净完成——补紧 HTTP 超时的必要性再证(呼应切片 2 终审 Important #1)
+8. **【frontend-slides 坑·复现】**:官方 `export-pdf.sh` 与双 class(active+visible)+transition-delay stagger 不兼容(#2、#22),PDF 定格在 opacity=0 假"消失";`.deco-dot` 一类复用两种定位场景 absolute 脱流叠一处(#23)——均待移交 frontend-slides 坑位清单
+9. **【ASR 校正技巧】**(#15):用抽出帧的屏幕图文交叉核对转写,逮到 "Mythos→Mistral"(把 Claude 模型层级误听成竞品)等看似合理实为噪声的错译
+
 ## 待办
 
 - [x] ~~#7、#8 的 ai-zh 轨确认~~ → 批量试产落定:#7 有(312 段),#8 无(归 ASR 组)
@@ -125,4 +152,7 @@
 - [x] ~~补充 访谈/whiteboard/真演讲/竖屏 用例~~ → 第三批已补(#16–#23)
 - [x] ~~静态封面播客样本~~ → 设计决议:无需样本,首帧 + transcript(事实 8)
 - [x] ~~会议记录体裁~~ → 第四批已补(#24–#26,短/中/超长梯度)——**覆盖矩阵至此无已知缺口**
-- [ ] 每形态扩充到 5–10 个,作为探针阈值调参的标注集(spec §14 仍开放项 1;当前确认数:slide 3-4 / 录屏 3 / talking-head 2 / cinematic 5 / whiteboard 2 / 分段 2)
+- [ ] 每形态扩充到 5–10 个,作为探针阈值调参的标注集(spec §14 仍开放项 1;当前确认数:slide 3-4 / 录屏 3 / talking-head 6 / cinematic 7 / whiteboard 2 / 分段 2)
+- [x] ~~切片 2 ASR 路径实跑覆盖~~ → 解锁批已补(#2/#8/#15/#23/#9b/#9c,2026-07-12),**实跑覆盖 23/27**
+- [ ] **实跑剩余 6 支长视频组(#10 41min / #12 75min / #14 64min / #19 132min / #20 112min / #24 115min)**——全部 >30min,卡在分章机制,即切片 3 的用例锚点
+- [ ] 两个可改脚本项:fetch.py `/shorts/` 识别(小 bug)、frames.py 非 slide-driven 宽窗口候选均匀采样(2 次确认,触 spec §8)
