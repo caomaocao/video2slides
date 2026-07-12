@@ -13,6 +13,14 @@ from common import emit, is_fresh, load_json, save_json, wp
 PAGE_THR = 0.30
 MIN_GAP = 1.5
 
+# 切片3 划章辅助初始值(spec 切片3 §3;调参属 spec §14 台账)
+HINT_PB_GAP = 60.0    # 页边界簇间长间隙下限:事件记在间隙末端(新内容启动处)
+HINT_SEG_GAP = 3.0    # 转写段间隙下限
+HINT_SIL_SPAN = 2.0   # 静音区间时长下限
+HINT_MERGE = 10.0     # 共振合并窗(±s)
+HINT_EDGE = 60.0      # 首尾排除区
+HINT_W = {"page-gap": 2.0, "silence": 1.5, "seg-gap": 1.0, "heat-valley": 1.0}
+
 _FRAME = re.compile(r"frame:(\d+)\s+pts:\S+\s+pts_time:([\d.]+)")
 _SCORE = re.compile(r"lavfi\.scene_score=([\d.]+)")
 
@@ -57,6 +65,61 @@ def curve_stats(rows: list[dict]) -> dict:
         "spikes_per_min": round(spikes / dur_min, 2),
         "plateau_ratio": round(sum(1 for s in scores if s < 0.05) / n, 3) if n else 0.0,
     }
+
+
+def hint_target_n(duration: float) -> int:
+    """候选章界目标数:每 10min 约 1 个,clamp [3,24];刻意多于预期章数,宿主只删不增收敛。"""
+    return max(3, min(24, round(duration / 600)))
+
+
+def _merge_events(events: list[dict], win: float = HINT_MERGE) -> list[dict]:
+    """±win 内共振合并:score 相加、t 取 score 加权均值、信号并集。"""
+    out: list[dict] = []
+    for e in sorted(events, key=lambda e: e["t"]):
+        if out and e["t"] - out[-1]["t"] <= win:
+            prev = out[-1]
+            total = prev["score"] + e["score"]
+            prev["t"] = (prev["t"] * prev["score"] + e["t"] * e["score"]) / total
+            prev["score"] = total
+            prev["signals"] = sorted(set(prev["signals"]) | set(e["signals"]))
+        else:
+            out.append({"t": e["t"], "score": e["score"], "signals": sorted(e["signals"])})
+    return out
+
+
+def synth_chapter_hints(duration: float, boundaries: list[dict],
+                        seg_spans: list[tuple[float, float]],
+                        silence_spans: list[tuple[float, float]],
+                        heatmap: list[dict]) -> list[dict]:
+    """多信号共振合成候选章界(spec 切片3 §3):各信号独立记分 → ±HINT_MERGE 合并 →
+    首尾 HINT_EDGE 排除 → top-N(N=hint_target_n)→ 按时间升序返回。"""
+    events: list[dict] = []
+    for a, b in zip(boundaries, boundaries[1:]):
+        if b["t"] - a["t"] >= HINT_PB_GAP:
+            events.append({"t": b["t"], "score": HINT_W["page-gap"], "signals": ["page-gap"]})
+    for (_, e0), (s1, _) in zip(seg_spans, seg_spans[1:]):
+        if s1 - e0 >= HINT_SEG_GAP:
+            events.append({"t": s1, "score": HINT_W["seg-gap"], "signals": ["seg-gap"]})
+    for s, e in silence_spans:
+        if e - s >= HINT_SIL_SPAN:
+            events.append({"t": e, "score": HINT_W["silence"], "signals": ["silence"]})
+    if heatmap:
+        vmax = max(h["value"] for h in heatmap) or 1.0
+        for h in heatmap:
+            if h["value"] < 0.25 * vmax:
+                events.append({"t": (h["t_start"] + h["t_end"]) / 2,
+                               "score": HINT_W["heat-valley"], "signals": ["heat-valley"]})
+    merged = [e for e in _merge_events(events) if HINT_EDGE <= e["t"] <= duration - HINT_EDGE]
+    top = sorted(merged, key=lambda e: -e["score"])[:hint_target_n(duration)]
+    return sorted(top, key=lambda e: e["t"])
+
+
+def attach_excerpts(hints: list[dict], segments: list[dict], k: int = 2) -> list[dict]:
+    """每条候选补前后各 k 段转写文本——宿主语义确认的依据,免通读(spec 切片3 §3)。"""
+    for h in hints:
+        h["before"] = [s["text"] for s in segments if s["t_end"] <= h["t"]][-k:]
+        h["after"] = [s["text"] for s in segments if s["t_start"] >= h["t"]][:k]
+    return hints
 
 
 def run_cli(argv=None) -> int:
