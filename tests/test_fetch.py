@@ -15,6 +15,20 @@ def test_normalize_youtube_watch_and_short():
         assert s["badge_url_template"] == "https://www.youtube.com/watch?v=QNiaoD5RxPA&t={t}s"
 
 
+def test_normalize_youtube_shorts_and_pathforms():
+    # /shorts/、/embed/、/live/、/v/ 无 ?v= 的路径形式均归一到 watch 形式(角标也用 watch,与 shorts 无 t 参数一致)
+    for url in [
+        "https://www.youtube.com/shorts/f7bJsbxoLg8",
+        "https://www.youtube.com/embed/f7bJsbxoLg8",
+        "https://www.youtube.com/live/f7bJsbxoLg8",
+        "https://www.youtube.com/shorts/f7bJsbxoLg8?feature=share",
+    ]:
+        s = fetch.normalize_url(url)
+        assert s["platform"] == "youtube" and s["vid"] == "f7bJsbxoLg8" and s["part"] is None
+        assert s["canonical_url"] == "https://www.youtube.com/watch?v=f7bJsbxoLg8"
+        assert s["badge_url_template"] == "https://www.youtube.com/watch?v=f7bJsbxoLg8&t={t}s"
+
+
 def test_normalize_bilibili_default_p1_and_explicit_p():
     s1 = fetch.normalize_url("https://www.bilibili.com/video/BV1k44LzPEhU")
     assert s1["part"] == 1 and s1["canonical_url"].endswith("?p=1")

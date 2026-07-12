@@ -38,6 +38,11 @@ def normalize_url(url: str) -> dict:
     if "youtube.com" in host:
         vid = q.get("v", [None])[0]
         if not vid:
+            # /shorts/<id>、/embed/<id>、/live/<id>、/v/<id> 等无 ?v= 的路径形式,均归一到 watch 形式
+            m = re.match(r"/(?:shorts|embed|live|v)/([^/?#]+)", u.path)
+            if m:
+                vid = m.group(1)
+        if not vid:
             raise ValueError(f"无法解析 YouTube 视频 id: {url}")
         return _yt(vid)
     if "bilibili.com" in host:
