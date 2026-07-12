@@ -287,3 +287,21 @@ def test_chapter_hints_cli_uniform_fallback(tmp_path):
     assert out["fallback"] == "uniform"
     assert [h["t"] for h in out["hints"]] == [600.0, 1200.0, 1800.0]
     assert all(h["signals"] == ["uniform"] for h in out["hints"])
+
+
+def test_chapter_hints_cli_uniform_fallback_short_duration_safeguard(tmp_path):
+    # 短时长(660s):range(600, 600, 600)→空列表;保底应给单个中点候选
+    # 信号全无 + duration<=660 → fallback=uniform 且恰好 1 条 hint、t==duration/2
+    common.save_json(common.wp(tmp_path, "meta"), {"duration": 660.0, "title": "t"})
+    common.save_json(common.wp(tmp_path, "transcript"),
+                     {"segments": [{"id": "s0", "t_start": 0.0, "t_end": 660.0, "text": "整段"}]})
+    common.save_json(common.wp(tmp_path, "page_boundaries"), [])
+    common.save_json(common.wp(tmp_path, "priors"),
+                     {"chapters": [], "heatmap": [], "danmaku_density": [], "page_boundaries": []})
+    rc = signals.run_cli(["--chapter-hints", "--work", str(tmp_path)])
+    assert rc == 0
+    out = common.load_json(common.wp(tmp_path, "chapter_hints"))
+    assert out["fallback"] == "uniform"
+    assert len(out["hints"]) == 1, f"期望 1 条保底 hint，得到 {len(out['hints'])} 条"
+    assert out["hints"][0]["t"] == 330.0, f"期望 t=330.0，得到 {out['hints'][0]['t']}"
+    assert out["hints"][0]["signals"] == ["uniform"]

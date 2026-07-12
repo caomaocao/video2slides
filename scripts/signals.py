@@ -156,6 +156,8 @@ def run_cli(argv=None) -> int:
             if not hints:                        # 信号全无:10min 均分兜底,如实标注
                 hints = [{"t": float(t), "score": None, "signals": ["uniform"]}
                          for t in range(600, int(duration - HINT_EDGE), 600)]
+                if not hints:                    # 保底:列表为空时给单个中点候选(兜底的兜底)
+                    hints = [{"t": float(round(duration / 2, 1)), "score": None, "signals": ["uniform"]}]
                 fallback = "uniform"
         attach_excerpts(hints, segments)
         for i, h in enumerate(hints, 1):
@@ -170,7 +172,7 @@ def run_cli(argv=None) -> int:
             before = (h["before"] or ["(片头)"])[-1]
             after = (h["after"] or ["(片尾)"])[0]
             lines.append(f"  #{h['idx']} t={h['t']:.1f} [{sig}]{title} …{before} ▸ {after}…")
-        emit(*lines, next_hint=f"宿主语义确认(可并不可拆)后写 {wp(work, 'chapter_plan')}(SKILL.md 步骤 2.5)")
+        emit(*lines, next_hint=f"宿主语义确认(只并不拆)后写 {wp(work, 'chapter_plan')}(SKILL.md 步骤 2.5)")
         return 0
 
     proxy, scores_p, bounds_p = wp(work, "proxy"), wp(work, "scene_scores"), wp(work, "page_boundaries")
