@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+import common
 import signals
 
 FIX = Path(__file__).parent / "fixtures"
@@ -231,3 +232,58 @@ def test_attach_excerpts_two_before_two_after():
     out = signals.attach_excerpts(hints, segments, k=2)
     assert out[0]["before"] == ["段2", "段3"]      # t_end<=45 的最后两段(s3 t_end=38)
     assert out[0]["after"] == ["段5", "段6"]       # t_start>=45 的前两段(s5 t_start=50)
+
+
+def _hints_work(tmp_path, chapters=(), heatmap=(), duration=2400.0):
+    """构造 --chapter-hints 所需最小 .work:meta/transcript/page_boundaries/priors。"""
+    common.save_json(common.wp(tmp_path, "meta"), {"duration": duration, "title": "t"})
+    segs = [{"id": f"s{i}", "t_start": i * 20.0, "t_end": i * 20.0 + 15, "text": f"第{i}段"}
+            for i in range(int(duration // 20))]
+    common.save_json(common.wp(tmp_path, "transcript"), {"segments": segs})
+    common.save_json(common.wp(tmp_path, "page_boundaries"),
+                     [{"n": i, "t": t, "score": 0.5} for i, t in enumerate([100.0, 400.0, 900.0])])
+    common.save_json(common.wp(tmp_path, "priors"),
+                     {"chapters": list(chapters), "heatmap": list(heatmap),
+                      "danmaku_density": [], "page_boundaries": []})
+    return tmp_path
+
+
+def test_chapter_hints_cli_native_passthrough(tmp_path, capsys):
+    w = _hints_work(tmp_path, chapters=[
+        {"title": "开场", "t_start": 0.0, "t_end": 1200.0},
+        {"title": "正片", "t_start": 1200.0, "t_end": 2400.0}])
+    rc = signals.run_cli(["--chapter-hints", "--work", str(w)])
+    assert rc == 0
+    out = common.load_json(common.wp(w, "chapter_hints"))
+    assert out["fallback"] is None
+    assert [h["signals"] for h in out["hints"]] == [["native"], ["native"]]
+    assert out["hints"][0]["title"] == "开场"
+    assert out["hints"][1]["t"] == 1200.0
+    assert "before" in out["hints"][1] and "after" in out["hints"][1]
+
+
+def test_chapter_hints_cli_synth_without_audio(tmp_path):
+    # 无 audio.mp3(字幕路径)→ 静音信号列跳过,其余信号照常;不报错
+    w = _hints_work(tmp_path)
+    rc = signals.run_cli(["--chapter-hints", "--work", str(w)])
+    assert rc == 0
+    out = common.load_json(common.wp(w, "chapter_hints"))
+    assert out["fallback"] is None
+    assert all("silence" not in h["signals"] for h in out["hints"])
+    assert all(h["idx"] == i + 1 for i, h in enumerate(out["hints"]))
+
+
+def test_chapter_hints_cli_uniform_fallback(tmp_path):
+    # 信号全无(无边界/无间隙/无静音/无热度)→ 每 600s 均分,fallback 标注
+    common.save_json(common.wp(tmp_path, "meta"), {"duration": 2400.0, "title": "t"})
+    common.save_json(common.wp(tmp_path, "transcript"),
+                     {"segments": [{"id": "s0", "t_start": 0.0, "t_end": 2400.0, "text": "整段"}]})
+    common.save_json(common.wp(tmp_path, "page_boundaries"), [])
+    common.save_json(common.wp(tmp_path, "priors"),
+                     {"chapters": [], "heatmap": [], "danmaku_density": [], "page_boundaries": []})
+    rc = signals.run_cli(["--chapter-hints", "--work", str(tmp_path)])
+    assert rc == 0
+    out = common.load_json(common.wp(tmp_path, "chapter_hints"))
+    assert out["fallback"] == "uniform"
+    assert [h["t"] for h in out["hints"]] == [600.0, 1200.0, 1800.0]
+    assert all(h["signals"] == ["uniform"] for h in out["hints"])

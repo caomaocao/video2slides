@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common import emit, is_fresh, load_json, save_json, wp
+from common import detect_silence_spans, emit, is_fresh, load_json, save_json, wp
 
 # 初始值(spec §14):页边界阈值 0.30,峰间最小间隔 1.5s
 PAGE_THR = 0.30
@@ -129,9 +129,50 @@ def attach_excerpts(hints: list[dict], segments: list[dict], k: int = 2) -> list
 def run_cli(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--work", required=True)
+    ap.add_argument("--chapter-hints", action="store_true",
+                    help="划章辅助:输出候选章界(切片3 spec §3)")
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args(argv)
     work = Path(args.work)
+
+    if args.chapter_hints:
+        meta = load_json(wp(work, "meta"))
+        duration = float(meta["duration"])
+        segments = load_json(wp(work, "transcript"))["segments"]
+        priors = load_json(wp(work, "priors"))
+        fallback = None
+        if priors.get("chapters"):
+            # 原生 chapters 直接透传为候选(信号列 native);宿主仍有收敛权(只并不拆)
+            hints = [{"t": float(c["t_start"]), "score": None,
+                      "signals": ["native"], "title": c.get("title", "")}
+                     for c in priors["chapters"]]
+        else:
+            audio = wp(work, "audio")
+            silence_spans = detect_silence_spans(audio) if audio.exists() else []
+            seg_spans = [(s["t_start"], s["t_end"]) for s in segments]
+            bounds = load_json(wp(work, "page_boundaries"))
+            hints = synth_chapter_hints(duration, bounds, seg_spans,
+                                        silence_spans, priors.get("heatmap") or [])
+            if not hints:                        # 信号全无:10min 均分兜底,如实标注
+                hints = [{"t": float(t), "score": None, "signals": ["uniform"]}
+                         for t in range(600, int(duration - HINT_EDGE), 600)]
+                fallback = "uniform"
+        attach_excerpts(hints, segments)
+        for i, h in enumerate(hints, 1):
+            h["idx"] = i
+        out_p = wp(work, "chapter_hints")
+        save_json(out_p, {"n_target": hint_target_n(duration), "fallback": fallback,
+                          "hints": hints})
+        lines = [f"chapter_hints: {out_p}({len(hints)} 条,fallback={fallback})"]
+        for h in hints:
+            sig = "+".join(h["signals"])
+            title = f" [{h['title']}]" if h.get("title") else ""
+            before = (h["before"] or ["(片头)"])[-1]
+            after = (h["after"] or ["(片尾)"])[0]
+            lines.append(f"  #{h['idx']} t={h['t']:.1f} [{sig}]{title} …{before} ▸ {after}…")
+        emit(*lines, next_hint=f"宿主语义确认(可并不可拆)后写 {wp(work, 'chapter_plan')}(SKILL.md 步骤 2.5)")
+        return 0
+
     proxy, scores_p, bounds_p = wp(work, "proxy"), wp(work, "scene_scores"), wp(work, "page_boundaries")
 
     if not args.force and is_fresh(scores_p, proxy) and is_fresh(bounds_p, proxy):
