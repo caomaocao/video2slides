@@ -73,7 +73,9 @@ def hint_target_n(duration: float) -> int:
 
 
 def _merge_events(events: list[dict], win: float = HINT_MERGE) -> list[dict]:
-    """±win 内共振合并:score 相加、t 取 score 加权均值、信号并集。"""
+    """±win 内共振合并:score 相加、t 取 score 加权均值、信号并集。
+
+    链式合并:簇内相邻事件各自 ≤win 即持续并入,簇总跨度可超 win——共振窗约束的是相邻间距而非簇宽,这是有意行为。"""
     out: list[dict] = []
     for e in sorted(events, key=lambda e: e["t"]):
         if out and e["t"] - out[-1]["t"] <= win:
@@ -104,7 +106,7 @@ def synth_chapter_hints(duration: float, boundaries: list[dict],
         if e - s >= HINT_SIL_SPAN:
             events.append({"t": e, "score": HINT_W["silence"], "signals": ["silence"]})
     if heatmap:
-        vmax = max(h["value"] for h in heatmap) or 1.0
+        vmax = max(h["value"] for h in heatmap)
         for h in heatmap:
             if h["value"] < 0.25 * vmax:
                 events.append({"t": (h["t_start"] + h["t_end"]) / 2,
@@ -115,7 +117,9 @@ def synth_chapter_hints(duration: float, boundaries: list[dict],
 
 
 def attach_excerpts(hints: list[dict], segments: list[dict], k: int = 2) -> list[dict]:
-    """每条候选补前后各 k 段转写文本——宿主语义确认的依据,免通读(spec 切片3 §3)。"""
+    """每条候选补前后各 k 段转写文本——宿主语义确认的依据,免通读(spec 切片3 §3)。
+
+    就地往 hints 元素写 before/after 并返回同一引用(有意的原地扩充,调用方勿复用未 attach 的引用)。"""
     for h in hints:
         h["before"] = [s["text"] for s in segments if s["t_end"] <= h["t"]][-k:]
         h["after"] = [s["text"] for s in segments if s["t_start"] >= h["t"]][:k]

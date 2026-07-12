@@ -95,12 +95,134 @@ def test_synth_hints_heat_valley():
 
 
 def test_synth_hints_topn_keeps_strongest():
-    # 事件数超过 top-N 时按 score 保强、输出仍按时间升序
-    boundaries = [{"t": float(t), "score": 0.5} for t in range(100, 1000, 70)]  # 每 70s 一个 page-gap
+    """事件数超过 top-N 时按 score 保强、淘汰低权重、输出仍按时间升序。"""
+    duration = 2400.0
+    target_n = signals.hint_target_n(duration)  # 4
+
+    # 5 个 page-gap 事件（高权重 2.0），间隔 100s，都在排除区外（>=60 && <=2340）
+    boundaries = [
+        {"t": 100.0, "score": 0.5},
+        {"t": 200.0, "score": 0.5},  # (100, 200): 100 >= 60 → page-gap@200
+        {"t": 300.0, "score": 0.5},  # (200, 300): 100 >= 60 → page-gap@300
+        {"t": 400.0, "score": 0.5},  # (300, 400): 100 >= 60 → page-gap@400
+        {"t": 500.0, "score": 0.5},  # (400, 500): 100 >= 60 → page-gap@500
+        {"t": 600.0, "score": 0.5},  # (500, 600): 100 >= 60 → page-gap@600
+    ]
+
+    # 2 个 seg-gap 事件（低权重 1.0），间隔 > 10s 不合并
+    seg_spans = [
+        (60.0, 200.0),
+        (215.0, 250.0),  # (200, 215): 15 >= 3 → seg-gap@215
+        (265.0, 400.0),
+        (415.0, 450.0),  # (400, 415): 15 >= 3 → seg-gap@415
+        (465.0, 2300.0),
+    ]
+
     hints = signals.synth_chapter_hints(
-        duration=1500.0, boundaries=boundaries, seg_spans=[], silence_spans=[], heatmap=[])
-    assert len(hints) <= signals.hint_target_n(1500.0)
+        duration=duration, boundaries=boundaries, seg_spans=seg_spans,
+        silence_spans=[], heatmap=[])
+
+    # 总共生成 5 个 page-gap + 2 个 seg-gap = 7 个事件，top-4 保留最强的 4 个（都是 page-gap）
+    assert len(hints) == target_n, f"Expected {target_n} hints, got {len(hints)}"
+    for h in hints:
+        assert h["signals"] == ["page-gap"], f"Expected page-gap, got {h['signals']}"
+        assert h["score"] == 2.0, f"Expected score 2.0, got {h['score']}"
+    # 输出按 t 升序
     assert hints == sorted(hints, key=lambda h: h["t"])
+
+
+def test_synth_hints_boundary_equals():
+    """五个阈值'恰好等于'边界用例验证。"""
+    duration = 2000.0
+
+    # 1. 页边界间隙恰好 60.0 → 触发 page-gap
+    boundaries = [
+        {"t": 100.0, "score": 0.5},
+        {"t": 160.0, "score": 0.5},  # 间隙=60.0，恰好等于阈值 → page-gap@160
+    ]
+    hints = signals.synth_chapter_hints(duration, boundaries, [], [], [])
+    assert any(h["signals"] == ["page-gap"] and h["t"] == 160.0 for h in hints), \
+        "间隙恰好 60.0 应触发 page-gap"
+
+    # 2. 段间隙恰好 3.0 → 触发 seg-gap
+    seg_spans = [(100.0, 200.0), (203.0, 300.0)]  # 间隙=203-200=3.0
+    hints = signals.synth_chapter_hints(duration, [], seg_spans, [], [])
+    assert any(h["signals"] == ["seg-gap"] and h["t"] == 203.0 for h in hints), \
+        "段间隙恰好 3.0 应触发 seg-gap"
+
+    # 3. 静音时长恰好 2.0 → 触发 silence
+    silence_spans = [(100.0, 102.0)]  # 时长=2.0，恰好等于阈值
+    hints = signals.synth_chapter_hints(duration, [], [], silence_spans, [])
+    assert any(h["signals"] == ["silence"] and h["t"] == 102.0 for h in hints), \
+        "静音时长恰好 2.0 应触发 silence"
+
+    # 4. 两事件相距恰好 10.0 → 合并为一条
+    silence_spans = [(100.0, 102.0), (112.0, 114.0)]  # 两个 silence，相距 112-102=10.0
+    hints = signals.synth_chapter_hints(duration, [], [], silence_spans, [])
+    # 应该合并成 1 条
+    merged_hint = [h for h in hints if 102.0 <= h["t"] <= 112.0]
+    assert len(merged_hint) == 1, \
+        f"两个事件相距恰好 10.0 应合并为 1 条，得到 {len(merged_hint)}"
+    assert "silence" in merged_hint[0]["signals"]
+
+    # 5. 事件 t 恰好等于 HINT_EDGE 和 duration-HINT_EDGE → 都保留（闭区间）
+    # HINT_EDGE=60, duration-HINT_EDGE=2000-60=1940
+    boundaries = [
+        {"t": 0.0, "score": 0.5},
+        {"t": 60.0, "score": 0.5},    # 页边界间隙 60 → page-gap@60
+        {"t": 1880.0, "score": 0.5},
+        {"t": 1940.0, "score": 0.5},  # 页边界间隙 60 → page-gap@1940
+    ]
+    hints = signals.synth_chapter_hints(duration, boundaries, [], [], [])
+    hints_t = [h["t"] for h in hints]
+    assert 60.0 in hints_t, f"t=HINT_EDGE 应保留，hints_t={hints_t}"
+    assert 1940.0 in hints_t, f"t=duration-HINT_EDGE 应保留，hints_t={hints_t}"
+
+
+def test_synth_hints_chained_merge():
+    """链式合并:三个同权重事件末端间隔 5.5/5s(都<10) → 链式并入一条簇。
+
+    验证链式合并的行为(spec _merge_events 注释):
+    簇内相邻事件各自 ≤win 即持续并入,簇总跨度可超 win——共振窗约束的是相邻间距而非簇宽,这是有意行为。
+    事件 A(102) 与 B(107.5) 距 5.5≤10 → 合并得 AB(104.75)；
+    AB(104.75) 与 C(112.5) 距 7.75≤10 → 继续合并得 ABC。
+    """
+    duration = 500.0
+
+    # 构造三个 silence 事件，末端相距都 < 10s，应链式合并成 1 条
+    silence_spans = [
+        (100.0, 102.0),    # silence@102.0, weight=1.5
+        (105.0, 107.5),    # silence@107.5, 距 102 的 5.5 < 10 → 合并
+        (110.0, 112.5),    # silence@112.5, 距合并后中点的 ~7.75 < 10 → 继续并入
+    ]
+
+    hints = signals.synth_chapter_hints(duration, [], [], silence_spans, [])
+
+    # 应该只有 1 条合并后的事件（三个相邻间距都 ≤10 的事件链式并入一条簇）
+    assert len(hints) == 1, f"三个事件应链式合并为 1 条，得到 {len(hints)} 条"
+
+    h = hints[0]
+    assert "silence" in h["signals"]
+    # 中点应该接近加权均值 (102*1.5 + 107.5*1.5 + 112.5*1.5) / (1.5*3) = (102+107.5+112.5)/3 ≈ 107.33
+    assert h["t"] == pytest.approx((102.0 + 107.5 + 112.5) / 3)
+
+
+def test_synth_hints_zero_heatmap_no_valleys():
+    """全零 heatmap 应不产生 heat-valley 事件。"""
+    duration = 500.0
+
+    # 全零 heatmap
+    heatmap = [
+        {"t_start": 0.0, "t_end": 100.0, "value": 0.0},
+        {"t_start": 100.0, "t_end": 200.0, "value": 0.0},
+        {"t_start": 200.0, "t_end": 300.0, "value": 0.0},
+    ]
+
+    hints = signals.synth_chapter_hints(duration, [], [], [], heatmap)
+
+    # 不应该产生 heat-valley 事件
+    assert not any("heat-valley" in h["signals"] for h in hints), \
+        "全零 heatmap 不应产生 heat-valley 事件"
 
 
 def test_attach_excerpts_two_before_two_after():
