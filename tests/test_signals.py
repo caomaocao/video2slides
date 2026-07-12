@@ -109,20 +109,20 @@ def test_synth_hints_topn_keeps_strongest():
         {"t": 600.0, "score": 0.5},  # (500, 600): 100 >= 60 → page-gap@600
     ]
 
-    # 2 个 seg-gap 事件（低权重 1.0），间隔 > 10s 不合并
+    # 4 个 seg-gap 事件（低权重 1.0），与任何相邻事件间隔 > 10s 不合并
     seg_spans = [
         (60.0, 200.0),
         (215.0, 250.0),  # (200, 215): 15 >= 3 → seg-gap@215
-        (265.0, 400.0),
+        (265.0, 400.0),  # (250, 265): 15 >= 3 → seg-gap@265
         (415.0, 450.0),  # (400, 415): 15 >= 3 → seg-gap@415
-        (465.0, 2300.0),
+        (465.0, 2300.0), # (450, 465): 15 >= 3 → seg-gap@465
     ]
 
     hints = signals.synth_chapter_hints(
         duration=duration, boundaries=boundaries, seg_spans=seg_spans,
         silence_spans=[], heatmap=[])
 
-    # 总共生成 5 个 page-gap + 2 个 seg-gap = 7 个事件，top-4 保留最强的 4 个（都是 page-gap）
+    # 总共生成 5 个 page-gap + 4 个 seg-gap = 9 个事件，top-4 保留最强的 4 个（都是 page-gap）
     assert len(hints) == target_n, f"Expected {target_n} hints, got {len(hints)}"
     for h in hints:
         assert h["signals"] == ["page-gap"], f"Expected page-gap, got {h['signals']}"
@@ -156,14 +156,13 @@ def test_synth_hints_boundary_equals():
     assert any(h["signals"] == ["silence"] and h["t"] == 102.0 for h in hints), \
         "静音时长恰好 2.0 应触发 silence"
 
-    # 4. 两事件相距恰好 10.0 → 合并为一条
-    silence_spans = [(100.0, 102.0), (112.0, 114.0)]  # 两个 silence，相距 112-102=10.0
+    # 4. 两事件相距恰好 10.0 → 合并为一条（断言对整个返回值，不做过滤窗——避免伪通过）
+    silence_spans = [(100.0, 102.0), (110.0, 112.0)]  # 事件记在 span 末端:@102 与 @112,恰好相距 10.0
     hints = signals.synth_chapter_hints(duration, [], [], silence_spans, [])
-    # 应该合并成 1 条
-    merged_hint = [h for h in hints if 102.0 <= h["t"] <= 112.0]
-    assert len(merged_hint) == 1, \
-        f"两个事件相距恰好 10.0 应合并为 1 条，得到 {len(merged_hint)}"
-    assert "silence" in merged_hint[0]["signals"]
+    assert len(hints) == 1, \
+        f"两个事件相距恰好 10.0 应合并为 1 条，得到 {len(hints)}"
+    assert hints[0]["score"] == pytest.approx(3.0)   # 1.5 + 1.5 合并
+    assert "silence" in hints[0]["signals"]
 
     # 5. 事件 t 恰好等于 HINT_EDGE 和 duration-HINT_EDGE → 都保留（闭区间）
     # HINT_EDGE=60, duration-HINT_EDGE=2000-60=1940
