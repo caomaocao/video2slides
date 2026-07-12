@@ -208,6 +208,12 @@ def prune_top3(cands: list[dict]) -> dict:
     return sel
 
 
+def level1_spans(outline: list | None) -> list[dict]:
+    """sheet 分桶数据源:storyboard level-1 节点 → {title, t_start} 列表(切片3 §5a)。
+    大纲恒存在,根治 priors.chapters 缺失时的单桶溢出;空/None 返回 [] = 单桶兜底。"""
+    return [{"title": nd.get("title", ""), "t_start": nd["t_start"]} for nd in (outline or [])]
+
+
 def _group_by_chapters(flat: list[dict], chapters: list[dict]) -> list[tuple[str, list[dict]]]:
     """全覆盖分组:每个候选按最近的章起点归章(早于首章归首章,晚于末章 t_end 归末章),零丢帧。
     不能用 [t_start, t_end) 区间过滤——章间缝隙/末章之后的候选会被静默丢弃,违背"每要点可见"契约。"""
@@ -385,7 +391,6 @@ def run_cli(argv=None) -> int:
         # 又是下游(media 回填),mtime 无法判定新旧;重跑本身确定性幂等,直接执行即可。
         sb = load_json(wp(work, "storyboard"))
         bounds = load_json(wp(work, "page_boundaries"))
-        chapters = load_json(wp(work, "priors"))["chapters"]
         leaves = []
 
         def walk(nodes):
@@ -399,7 +404,7 @@ def run_cli(argv=None) -> int:
         cands = [c for lf in leaves for c in plan_candidates(lf, bounds, duration)]
         ordered = dedup_candidates(extract_candidates(work, cands, rows))
         selected = prune_top3(measure(ordered))
-        sheets = make_sheets(work, selected, chapters)
+        sheets = make_sheets(work, selected, level1_spans(sb.get("outline")))
         save_json(wp(work, "candidates"), ordered)
         emit(f"候选 {len(ordered)} 帧,叶子 {len(leaves)} 个",
              *[f"sheet: {s['sheet']}" for s in sheets],

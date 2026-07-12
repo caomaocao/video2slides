@@ -158,6 +158,28 @@ def test_group_by_chapters_covers_gaps_and_tail():
     assert groups[1][0] == "B" and groups[1][1][0]["t"] == 12.0
 
 
+def test_level1_spans_from_outline():
+    outline = [{"id": "1", "title": "开场", "t_start": 0.0, "t_end": 300.0, "children": []},
+               {"id": "2", "title": "正片", "t_start": 300.0, "t_end": 900.0}]
+    # children 内容不影响 spans(只取 level-1 自身字段)
+    outline[0]["children"] = [{"id": "1.1", "t_start": 0.0, "t_end": 300.0}]
+    assert frames.level1_spans(outline) == [
+        {"title": "开场", "t_start": 0.0}, {"title": "正片", "t_start": 300.0}]
+    assert frames.level1_spans([]) == []           # 空大纲 → 单桶兜底(下游 _group_by_chapters 语义)
+    assert frames.level1_spans(None) == []
+
+
+def test_group_by_chapters_accepts_level1_spans():
+    # 同构性锁定:_group_by_chapters 消费 level1_spans 输出,分桶按 t_start 归属
+    flat = [{"node_id": "1.1", "t": 10.0}, {"node_id": "2.1", "t": 500.0}]
+    spans = frames.level1_spans([
+        {"id": "1", "title": "A", "t_start": 0.0, "t_end": 300.0},
+        {"id": "2", "title": "B", "t_start": 300.0, "t_end": 900.0}])
+    groups = frames._group_by_chapters(flat, spans)
+    assert [(title, [c["node_id"] for c in g]) for title, g in groups] == [
+        ("A", ["1.1"]), ("B", ["2.1"])]
+
+
 def test_cap_per_node_round_robin_no_starvation():
     """8 节点 × 3 候选,cap 18:每个节点至少 1 帧可见,无节点被整体截掉。"""
     g = [{"node_id": str(n), "t": n * 10.0 + r} for n in range(8) for r in range(3)]
