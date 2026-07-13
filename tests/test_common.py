@@ -73,3 +73,25 @@ def test_parse_silence_spans_unclosed_start_dropped():
 def test_artifacts_registers_chapter_hints_and_plan(tmp_path):
     assert common.wp(tmp_path, "chapter_hints") == tmp_path / "chapter_hints.json"
     assert common.wp(tmp_path, "chapter_plan") == tmp_path / "chapter_plan.json"
+
+
+def test_config_dir_respects_xdg(monkeypatch, tmp_path):
+    import common
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    assert common.config_dir() == tmp_path / "xdg" / "video2slides"
+
+
+def test_config_dir_falls_back_to_home(monkeypatch, tmp_path):
+    import common
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setattr(common.Path, "home", classmethod(lambda cls: tmp_path))
+    assert common.config_dir() == tmp_path / ".config" / "video2slides"
+
+
+def test_load_env_config_uses_xdg(monkeypatch, tmp_path):
+    import common
+    d = tmp_path / "xdg" / "video2slides"; d.mkdir(parents=True)
+    (d / ".env").write_text("ASR_BACKEND=none\n", encoding="utf-8")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    monkeypatch.delenv("ASR_BACKEND", raising=False)
+    assert common.load_env_config().get("ASR_BACKEND") == "none"

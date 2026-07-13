@@ -91,9 +91,15 @@ def sig_diff_ratio(a: bytes, b: bytes, channel_thr: int = 24) -> float:
     return changed / 256
 
 
+def config_dir() -> Path:
+    """配置目录:尊重 $XDG_CONFIG_HOME(Linux 惯例),缺省回落 ~/.config。macOS/未设时行为不变。"""
+    base = os.environ.get("XDG_CONFIG_HOME")
+    return (Path(base) if base else Path.home() / ".config") / "video2slides"
+
+
 def load_env_config(path: Path | str | None = None) -> dict[str, str]:
-    """读 ~/.config/video2slides/.env(KEY=VALUE)并叠加 os.environ(environ 优先)。零 pip 自写解析。"""
-    p = Path(path) if path else Path.home() / ".config" / "video2slides" / ".env"
+    """读 <config_dir>/.env(KEY=VALUE)并叠加 os.environ(environ 优先)。零 pip 自写解析。"""
+    p = Path(path) if path else config_dir() / ".env"
     cfg: dict[str, str] = {}
     if p.exists():
         for line in p.read_text(encoding="utf-8").splitlines():

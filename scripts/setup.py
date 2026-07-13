@@ -7,16 +7,55 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from common import emit, load_env_config
+from common import config_dir, emit, load_env_config
 from transcribe import PRESETS, resolve_asr_config
 
 _VER_RE = re.compile(r"(\d+)\.(\d+)")
+# arm64-only ASR 后端(mlx-whisper 保留槽位,P2);在非 Apple Silicon 上配置即报错(spec §10.2)
+_ARM64_ONLY_BACKENDS = {"mlxwhisper"}
+_ARM64_ALIASES = {"arm64", "aarch64"}
+
+
+def linux_pkg_hint(os_release: str | None = None) -> str:
+    """按 /etc/os-release 的 ID/ID_LIKE 判发行版族,返回 ffmpeg + yt-dlp 安装提示。
+
+    ffmpeg 走发行版包管理器,yt-dlp 走 pipx——发行版仓库的 yt-dlp 常年过旧,
+    跟不上 YouTube JS 挑战 / heatmap / B 站(CLAUDE.md 依赖政策)。
+    """
+    if os_release is None:
+        try:
+            os_release = Path("/etc/os-release").read_text(encoding="utf-8")
+        except OSError:
+            os_release = ""
+    fields = {}
+    for line in os_release.splitlines():
+        if "=" in line:
+            k, _, v = line.partition("=")
+            fields[k.strip()] = v.strip().strip('"').lower()
+    ids = f"{fields.get('ID', '')} {fields.get('ID_LIKE', '')}"
+    if any(d in ids for d in ("debian", "ubuntu")):
+        return "Debian/Ubuntu: sudo apt install -y ffmpeg && pipx install yt-dlp"
+    if any(d in ids for d in ("rhel", "centos", "fedora", "rocky", "almalinux")):
+        return ("RHEL/CentOS/Fedora: sudo dnf install -y ffmpeg && pipx install yt-dlp"
+                "(旧系统用 yum;ffmpeg 需先启用 RPM Fusion/EPEL)")
+    return "Linux: 用发行版包管理器装 ffmpeg,再 pipx install yt-dlp"
+
+
+def install_hint() -> str:
+    """按当前平台给出 ffmpeg/yt-dlp 安装命令(macOS brew / Linux 发行版族)。"""
+    sysname = platform.system()
+    if sysname == "Darwin":
+        return "macOS: brew install ffmpeg yt-dlp"
+    if sysname == "Linux":
+        return linux_pkg_hint()
+    return "请用 macOS(brew)或 Linux(发行版包管理器 + pipx)安装 ffmpeg 与 yt-dlp"
 
 
 def parse_version(text: str) -> tuple[int, int]:
@@ -33,7 +72,7 @@ def _version_of(cmd: list) -> tuple[int, int]:
 
 
 def probe() -> dict:
-    res = {}
+    res = {"platform": {"system": platform.system(), "machine": platform.machine()}}
     for name, ver_cmd in [("ffmpeg", ["ffmpeg", "-version"]),
                           ("ffprobe", ["ffprobe", "-version"]),
                           ("yt_dlp", ["yt-dlp", "--version"])]:
@@ -53,6 +92,9 @@ def check_asr() -> tuple[bool, str]:
         return False, str(e)
     if cfg["family"] == "none":
         return True, "ASR_BACKEND=none(keyless 帧-only 允许)"
+    if cfg.get("backend") in _ARM64_ONLY_BACKENDS and platform.machine() not in _ARM64_ALIASES:
+        return False, (f"{cfg['backend']} 仅支持 Apple Silicon(arm64);当前 {platform.machine()}"
+                       "——改用 funasr(双架构通吃)或 API 后端")
     if cfg["family"] == "funasr":
         py = Path(cfg["funasr_venv"]).expanduser() / "bin" / "python"
         if not py.exists():
@@ -66,7 +108,7 @@ def check_asr() -> tuple[bool, str]:
         return (r.returncode == 0,
                 "funasr 可用" if r.returncode == 0 else "funasr 导入失败(venv 内未安装?)")
     if not cfg["key"]:
-        return False, f"缺 {PRESETS[cfg['backend']]['key_env']}(写入 ~/.config/video2slides/.env)"
+        return False, f"缺 {PRESETS[cfg['backend']]['key_env']}(写入 {config_dir() / '.env'})"
     return True, f"{cfg['backend']} key 就绪"
 
 
@@ -75,6 +117,16 @@ def main(argv=None) -> int:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--check", action="store_true")
     args = ap.parse_args(argv)
+
+    # Windows 硬拦(exit 1):脚本假定 POSIX(~/.config、funasr venv 的 bin/python、路径分隔符),
+    # 目标平台为 macOS 与 Linux;WSL2 上报为 Linux,不受影响
+    if platform.system() == "Windows":
+        if args.json:
+            print(json.dumps({"platform": {"system": "Windows", "machine": platform.machine(),
+                                           "supported": False}}, ensure_ascii=False, indent=1))
+        elif not args.check:
+            emit("本 skill 不支持 Windows(原生)。请在 WSL2 / Linux / macOS 下运行。")
+        return 1
 
     p = probe()
     # 先校验 ASR 可用性(提前判定,便于 JSON 中一并呈现)
@@ -87,7 +139,7 @@ def main(argv=None) -> int:
     if missing:
         if not args.check and not args.json:
             names = ", ".join(m.replace("_", "-") for m in missing)
-            emit(f"缺必装二进制: {names}", "macOS: brew install ffmpeg yt-dlp")
+            emit(f"缺必装二进制: {names}", install_hint())
         return 2
     if not asr_ok:
         if not args.check and not args.json:

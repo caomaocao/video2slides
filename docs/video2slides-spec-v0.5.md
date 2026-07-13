@@ -16,6 +16,7 @@
 > 7. **笔记渲染器(第二消费方,兼契约验收器)**:`scripts/notes.py`,stdlib-only 确定性脚本,输入仅限导出文档 + `frames/`,禁碰 `.work/`;「两个消费方只读文档完成渲染」为契约完备性验收标准(§9.5、§12)
 > 8. **时间戳精度显式化**:导出契约携带 `timestamp_granularity` 字段——chat 家族 ASR 的 45s 块级粒度必须让下游可见(§6.5)
 > 9. **落地次序**:本升格为下一个切片;P2 dedup 判据升级排其后——届时只换签名判据不动契约,不返工(§13)
+> 10. **【2026-07-13 grill 定稿】跨平台预检**:目标 macOS + Linux/Unix(arm64/x86_64,含 Ubuntu/CentOS/RHEL/Fedora),**原生 Windows 硬拦(setup exit 1)**;配置目录尊重 `$XDG_CONFIG_HOME`;安装提示按 `/etc/os-release` 发行版族适配(apt/dnf,ffmpeg 走包管理器 + yt-dlp 走 pipx);架构门只在 arm64-only ASR 后端(mlx 保留槽位)时成立;Linux 逻辑单测模拟、未真机实测(§10.2)
 >
 > **v0.3 → v0.4 变更摘要**(源自实现前 review 问答,全部为决议落地,不改变主链路):
 > 1. 交互契约定稿:分析全程零打断,唯一交互点在渲染前——粒度询问与 frontend-slides Phase 1 的 Length 问题合并;风格由轴 B 体裁自动映射(跳过其 Phase 2 三选预览),交付时告知所用风格,可换风格重渲染(零重跑分析)(§9)
@@ -449,18 +450,26 @@ LLM 职责(形态/体裁分类、大纲生成、帧终选、HTML 生成)**写为
 
 ### 10.2 setup.py 预检
 
-`--json` 结构化预检 / `--check` 静默快查 / 幂等安装器 / `~/.config/video2slides/.env`(0600)存 `ASR_BACKEND`、API 家族三元组(`ASR_API_BASE` / `ASR_API_KEY` / `ASR_MODEL`)、`FUNASR_VENV` 与 `SETUP_COMPLETE` 标记【v0.4 重构】。
+`--json` 结构化预检 / `--check` 静默快查 / 幂等安装器 / `<配置目录>/.env`(0600)存 `ASR_BACKEND`、API 家族三元组(`ASR_API_BASE` / `ASR_API_KEY` / `ASR_MODEL`)、`FUNASR_VENV` 与 `SETUP_COMPLETE` 标记【v0.4 重构】。
+
+**支持平台【v0.5 新增,2026-07-13 grill 定稿】**:目标为 **macOS(Apple Silicon / Intel)+ Linux/Unix(arm64 / x86_64)**,覆盖 Ubuntu/Debian、CentOS/RHEL/Fedora;**明确排除原生 Windows**(WSL2 上报为 Linux,正常运行)。设计取舍:
+- **Windows 硬拦(exit 1)**:`setup.py` 探测前先判 `platform.system()=='Windows'`,是则非零退出 + 明确提示改用 WSL2/Linux/macOS——脚本假定 POSIX(`~/.config`、funasr venv 的 `bin/python`、路径分隔符),不为原生 Windows 兼容付成本,失败前置到第一步、信息明确
+- **配置目录尊重 `$XDG_CONFIG_HOME`**(Linux 惯例),缺省回落 `~/.config/video2slides/`(`common.config_dir()`);macOS 与未设该变量时行为不变
+- **发行版适配安装提示**:缺二进制时按平台印命令——macOS→`brew`;Linux 读 `/etc/os-release` 的 `ID`/`ID_LIKE` 判族(debian/ubuntu→`apt`、rhel/centos/fedora/rocky/almalinux→`dnf`,旧系统 `yum`)。**ffmpeg 走发行版包管理器,yt-dlp 走 pipx**——发行版仓库 yt-dlp 常年过旧,跟不上 YouTube JS 挑战/heatmap/B 站(§10.1 依赖政策);RHEL 系 ffmpeg 需先启用 RPM Fusion/EPEL(提示内注明)
+- **架构信息入 `--json`**:`probe().platform = {system, machine}` 供诊断;架构门只在 ASR 后端需要时才成立(见下)
+- **验证范围**:平台分支逻辑由单测 monkeypatch(`platform.system`/`machine`、`/etc/os-release` 文本)覆盖;**Linux 未在真机 CentOS/Ubuntu/RHEL 端到端实测**(按代码正确交付)
 
 | Exit | 含义 | 动作 |
 |---|---|---|
 | 0 | 可运行(含主动选择 `ASR_BACKEND=none` 的 keyless 状态) | 静默继续 |
-| 2 | 缺 ffmpeg / yt-dlp | 跑安装器(macOS brew 自动,其余打印命令) |
+| **1** | **原生 Windows(不支持)** | **停止,改用 WSL2 / Linux / macOS** |
+| 2 | 缺 ffmpeg / yt-dlp | 按平台印安装命令(macOS brew / Linux 发行版 apt·dnf + pipx) |
 | 3 | 真首次运行且所配 ASR 后端不可用(API 家族无 key 或端点不通 / funasr venv 缺失 / 本地后端平台 arch 不匹配) | 鼓励配置(groq key,或 `ASR_BACKEND=funasr`+`FUNASR_VENV`),可 `ASR_BACKEND=none`(CLI 别名 `--no-whisper`)继续 |
 | 4 | tesseract 缺失 | 仅提示,不阻塞,自动降级 |
 
 **版本检查(不止存在性)**:ffmpeg < 5.1 → 静默关闭 blurdetect,仅用峰后偏移规则;yt-dlp 过旧 → 软提示 `yt-dlp -U`(heatmap 与 B 站支持依赖新版)。
 
-**平台 arch 校验【v0.4 新增】**:本地子进程后端按平台校验——`mlxwhisper` 仅 Apple Silicon(arm64),Intel Mac 配置时预检直接报错并建议 `funasr`(CPU,双 arch 通吃)或 `whispercpp`;API 家族与 arch 无关。
+**平台 arch 校验【v0.4 新增,v0.5 落地为保留守卫】**:架构敏感面只有本地子进程 ASR 后端——`mlxwhisper` 仅 Apple Silicon(arm64),非 arm64 上配置该后端时 `check_asr` 直接报错并建议 `funasr`(双 arch 通吃)或 `whispercpp`;API 家族与 arch 无关,ffmpeg/yt-dlp 装好后不在乎 arch。mlx-whisper 为 P2 保留槽位(未进 `PRESETS`),故该守卫当前**逻辑就位但不触发**,待 P2 落地即生效(单测经 monkeypatch 覆盖其分支)。
 
 **本地文件输入措辞【v0.4 定稿】**:本地输入无字幕源,预检明确提示"需配置 ASR 后端或 `--transcript` 直喂转写";「有字幕免 API key」的卖点表述仅适用于 URL 输入。
 

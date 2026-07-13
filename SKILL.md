@@ -19,8 +19,9 @@ description: Turn a YouTube/Bilibili/local video into a self-contained video ind
 ## 流程
 
 ### 0. 预检
-`python scripts/setup.py`(不加 `--check`——该 flag 会静默掉所有提示文本,只留 exit code,缺二进制时看不到装什么;不加 flag 才会打印缺失清单与 `macOS: brew install ffmpeg yt-dlp` 提示)。
-exit 0 → 预检通过,继续;exit 2 → 按 stdout 提示装好 `ffmpeg`/`ffprobe`/`yt-dlp` 后重试;exit 3 → 所配 ASR 后端不可用:按 stdout 提示配置(`~/.config/video2slides/.env` 写 `ASR_BACKEND` 与对应 key,或 `FUNASR_VENV`);仅处理带字幕视频时可 `ASR_BACKEND=none` 继续。exit 4 → 仅缺 `tesseract`,提示信息可读但不阻塞,直接继续(文字密度打分自动降级为边缘密度代理)。
+`python scripts/setup.py`(不加 `--check`——该 flag 会静默掉所有提示文本,只留 exit code,缺二进制时看不到装什么;不加 flag 才会打印缺失清单与按平台适配的安装提示)。
+**支持平台**:macOS(Apple Silicon / Intel)与 Linux/Unix(arm64 / x86_64,含 Ubuntu/Debian、CentOS/RHEL/Fedora);**不支持原生 Windows**(WSL2 上报为 Linux,正常运行)。配置文件路径尊重 `$XDG_CONFIG_HOME`,缺省回落 `~/.config/video2slides/.env`。
+exit 0 → 预检通过,继续;**exit 1 → 原生 Windows,不支持**(改用 WSL2 / Linux / macOS,不要继续);exit 2 → 按 stdout 提示装好 `ffmpeg`/`ffprobe`/`yt-dlp`(macOS 印 brew、Linux 按发行版印 apt/dnf——ffmpeg 走发行版包管理器、yt-dlp 走 pipx)后重试;exit 3 → 所配 ASR 后端不可用:按 stdout 提示配置(`<XDG 或 ~/.config>/video2slides/.env` 写 `ASR_BACKEND` 与对应 key,或 `FUNASR_VENV`;若配了 arm64-only 后端而当前非 Apple Silicon,stdout 会提示改用 funasr);仅处理带字幕视频时可 `ASR_BACKEND=none` 继续。exit 4 → 仅缺 `tesseract`,提示信息可读但不阻塞,直接继续(文字密度打分自动降级为边缘密度代理)。
 
 ### 1. 取流
 `python scripts/fetch.py --url <URL> --work <OUT>/.work`(B 站加 `--cookies-from-browser chrome`)。

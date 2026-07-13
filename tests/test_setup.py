@@ -93,3 +93,74 @@ def test_json_pure_on_exit3(monkeypatch, capsys):
     assert rc == 3
     data = json.loads(capsys.readouterr().out)
     assert data["asr"] == {"ok": False, "detail": "缺 DASHSCOPE_API_KEY"}
+
+
+# 跨平台预检(2026-07-13):Windows 硬拦 / 发行版安装提示 / arch 门 / platform 入 JSON
+def test_windows_gate_blocks_with_exit1(monkeypatch, capsys):
+    monkeypatch.setattr(setup_mod.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(setup_mod.platform, "machine", lambda: "AMD64")
+    # 不应触发 probe/check_asr(Windows 在探测前就拦掉)
+    monkeypatch.setattr(setup_mod, "probe", lambda: (_ for _ in ()).throw(AssertionError("不应 probe")))
+    assert setup_mod.main([]) == 1
+    assert "Windows" in capsys.readouterr().out
+
+
+def test_windows_gate_json_pure(monkeypatch, capsys):
+    import json
+    monkeypatch.setattr(setup_mod.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(setup_mod.platform, "machine", lambda: "AMD64")
+    assert setup_mod.main(["--json"]) == 1
+    data = json.loads(capsys.readouterr().out)          # stdout 仍整体纯 JSON
+    assert data["platform"]["supported"] is False
+
+
+def test_linux_pkg_hint_debian_family():
+    for osr in ('ID=ubuntu\nID_LIKE=debian\n', 'ID=debian\n'):
+        assert "apt" in setup_mod.linux_pkg_hint(osr)
+
+
+def test_linux_pkg_hint_rhel_family():
+    for osr in ('ID="centos"\nID_LIKE="rhel fedora"\n', 'ID=rhel\n', 'ID=fedora\n', 'ID=rocky\nID_LIKE="rhel centos fedora"\n'):
+        h = setup_mod.linux_pkg_hint(osr)
+        assert "dnf" in h and "yum" in h
+
+
+def test_linux_pkg_hint_unknown_falls_back():
+    assert "发行版包管理器" in setup_mod.linux_pkg_hint('ID=arch\n')
+
+
+def test_install_hint_by_platform(monkeypatch):
+    monkeypatch.setattr(setup_mod.platform, "system", lambda: "Darwin")
+    assert "brew" in setup_mod.install_hint()
+    monkeypatch.setattr(setup_mod.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(setup_mod, "linux_pkg_hint", lambda: "LINUX-HINT")
+    assert setup_mod.install_hint() == "LINUX-HINT"
+
+
+def test_probe_includes_platform(monkeypatch):
+    monkeypatch.setattr(setup_mod, "check_asr", lambda: (True, "ok"))
+    p = setup_mod.probe()
+    assert set(p["platform"]) == {"system", "machine"}
+
+
+def test_arch_gate_arm64_only_backend_on_x86(monkeypatch):
+    # mlx-whisper 保留槽位:非 arm64 上配置该后端 → 报错建议 funasr(spec §10.2 arch 校验)
+    monkeypatch.setattr(setup_mod.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(setup_mod, "resolve_asr_config",
+                        lambda env: {"family": "subprocess", "backend": "mlxwhisper", "key": ""})
+    ok, msg = setup_mod.check_asr()
+    assert not ok and "arm64" in msg and "funasr" in msg
+
+
+def test_missing_binary_hint_follows_platform(monkeypatch, capsys):
+    fake = {"platform": {"system": "Linux", "machine": "x86_64"},
+            "ffmpeg": {"found": False, "version": [0, 0], "blurdetect": False},
+            "ffprobe": {"found": True, "version": [8, 0]},
+            "yt_dlp": {"found": True, "version": [2026, 7]},
+            "tesseract": {"found": True}}
+    monkeypatch.setattr(setup_mod.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(setup_mod, "probe", lambda: fake)
+    monkeypatch.setattr(setup_mod, "check_asr", lambda: (True, "ok"))
+    monkeypatch.setattr(setup_mod, "linux_pkg_hint", lambda: "APT-HINT")
+    assert setup_mod.main([]) == 2
+    assert "APT-HINT" in capsys.readouterr().out
