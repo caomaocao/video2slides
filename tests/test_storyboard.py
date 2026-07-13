@@ -1,9 +1,11 @@
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
 import storyboard as sb_mod
+from common import load_json, save_json, wp
 
 
 def _mkimg(path: Path, color: str) -> None:
@@ -181,3 +183,136 @@ def test_validate_cli_without_chapter_plan_unchanged(tmp_path):
     tr = {"segments": [{"id": "s0", "t_start": 0.0, "t_end": 10.0, "text": "你好世界"}]}
     r = sb_mod.validate(sb, tr, 10.0)
     assert r["ok"] and "chapter_errors" not in r
+
+
+# 切片4 票02:export 导出契约(spec v0.5 §6.5)——组装/校验/自包含/schema 对拍
+def _export_work(base, *, platform="youtube", tr_source="manual:zh", quote="Token 到底是什么"):
+    out = Path(base) / "out"
+    work = out / ".work"
+    fdir = work / "frames_proxy"; fdir.mkdir(parents=True)
+    img1 = fdir / "f_001.jpg"; img1.write_bytes(b"\xff\xd8img1")
+    img2 = fdir / "f_002.jpg"; img2.write_bytes(b"\xff\xd8img2")
+    src = {"youtube": {"platform": "youtube", "vid": "x", "part": None,
+                       "canonical_url": "https://www.youtube.com/watch?v=x",
+                       "badge_url_template": "https://www.youtube.com/watch?v=x&t={t}s"},
+           "local": {"platform": "local", "vid": "v", "part": None, "path": "/abs/v.mp4",
+                     "canonical_url": None, "badge_url_template": None}}[platform]
+    save_json(wp(work, "meta"), {"title": "测试片", "duration": 600.0, "language": "zh",
+                                 "uploader": "up", "source": src})
+    save_json(wp(work, "transcript"), {"language": "zh", "source": tr_source,
+                                       "segments": TRANSCRIPT["segments"]})
+    outline = [{"id": "1", "level": 1, "title": "开场", "summary": "s",
+                "t_start": 0.0, "t_end": 30.0,
+                "evidence": [{"segment_id": 1, "quote": quote}],
+                "media": [{"type": "frame", "proxy_path": str(img1), "final_path": None,
+                           "finalized": False, "t": 3.0, "reason": "scene-peak", "score": 0.9,
+                           "dedup_group": None, "dedup_primary": True},
+                          {"type": "clip", "final_path": None, "finalized": False,
+                           "t_start": 2.0, "t_end": 5.0, "poster": str(img1),
+                           "reason": "score-peak-window"}],
+                "children": [{"id": "1.1", "level": 2, "title": "细节", "summary": "",
+                              "t_start": 5.0, "t_end": 30.0,
+                              "evidence": [{"segment_id": 0, "quote": "大家好"}],
+                              "media": [{"type": "frame", "proxy_path": str(img2),
+                                         "final_path": None, "finalized": False, "t": 8.0,
+                                         "reason": "scene-peak", "score": 0.8,
+                                         "dedup_group": None, "dedup_primary": True}],
+                              "children": []}]}]
+    save_json(wp(work, "storyboard"),
+              {"video": {"title": "测试片", "duration": 600.0, "language": "zh",
+                         "genre": "课程/教程",
+                         "visual_form": [{"t_start": 0, "t_end": 600.0, "form": "slide-driven"}],
+                         "signals": {"scene_scores": "scene_scores.json"},
+                         "priors": {"chapters": [], "heatmap": [], "danmaku_density": [],
+                                    "page_boundaries": []}},
+               "outline": outline})
+    return out, work
+
+
+def test_export_produces_self_contained_doc(tmp_path):
+    out, work = _export_work(tmp_path)
+    assert sb_mod.export_index(work) == 0
+    doc = load_json(out / "video_index.json")
+    assert doc["schema_version"] and doc["video"]["platform"] == "youtube"
+    assert "signals" not in doc["video"]                       # .work 内部指针不外泄
+    assert doc["transcript"]["timestamp_granularity"] == "segment"
+    assert [s["id"] for s in doc["transcript"]["segments"]] == [0, 1]   # 全量转写内嵌
+    frame = doc["outline"][0]["media"][0]
+    assert frame["path"].startswith("frames/") and (out / frame["path"]).exists()
+    assert frame["resolution"] and frame["dedup_primary"] is True
+    clip = doc["outline"][0]["media"][1]
+    assert clip["poster"] == frame["path"]                     # poster 复用同一份导出帧
+    assert "proxy_path" not in frame and "finalized" not in frame       # 内部字段不外泄
+    shutil.rmtree(work)                                        # 自包含:删 .work 不断链
+    assert (out / frame["path"]).exists()
+    assert (out / doc["outline"][0]["children"][0]["media"][0]["path"]).exists()
+
+
+def test_export_granularity_mapping(tmp_path):
+    for src, expect in [("asr:mimo", "chunk-45s"), ("asr:qwen", "chunk-45s"),
+                        ("asr:funasr", "sentence"), ("asr:groq", "segment")]:
+        out, work = _export_work(tmp_path / src.replace(":", "_"), tr_source=src)
+        assert sb_mod.export_index(work) == 0
+        assert load_json(out / "video_index.json")["transcript"]["timestamp_granularity"] == expect
+
+
+def test_export_blocks_on_bad_quote(tmp_path, capsys):
+    out, work = _export_work(tmp_path, quote="根本没说过的话")
+    assert sb_mod.export_index(work) == 5
+    assert not (out / "video_index.json").exists()             # 校验不过不产出
+    assert "quote" in capsys.readouterr().out
+
+
+def test_export_blocks_on_missing_frame(tmp_path):
+    out, work = _export_work(tmp_path)
+    sb = load_json(wp(work, "storyboard"))
+    sb["outline"][0]["media"][0]["proxy_path"] = str(work / "frames_proxy" / "nope.jpg")
+    save_json(wp(work, "storyboard"), sb)
+    assert sb_mod.export_index(work) == 5
+    assert not (out / "video_index.json").exists()
+
+
+def test_export_badge_template_contract(tmp_path):
+    out, work = _export_work(tmp_path)
+    meta = load_json(wp(work, "meta"))
+    meta["source"]["badge_url_template"] = "https://youtu.be/x"        # 缺 {t} 占位
+    save_json(wp(work, "meta"), meta)
+    assert sb_mod.export_index(work) == 5
+    out2, work2 = _export_work(tmp_path / "local", platform="local")
+    assert sb_mod.export_index(work2) == 0
+    d = load_json(out2 / "video_index.json")
+    assert d["video"]["badge_url_template"] is None and d["video"]["platform"] == "local"
+    assert d["video"]["source_url"] == "/abs/v.mp4"            # 本地:源路径即高清自取入口
+
+
+def test_export_skips_when_fresh_and_forces(tmp_path, capsys):
+    out, work = _export_work(tmp_path)
+    assert sb_mod.export_index(work) == 0
+    capsys.readouterr()
+    assert sb_mod.export_index(work) == 0
+    assert "跳过" in capsys.readouterr().out                   # 续跑:新于上游即跳过
+    assert sb_mod.export_index(work, force=True) == 0
+    assert "跳过" not in capsys.readouterr().out
+
+
+def test_export_defaults_dedup_fields_when_missing(tmp_path):
+    out, work = _export_work(tmp_path)
+    sb = load_json(wp(work, "storyboard"))
+    for k in ("dedup_group", "dedup_primary"):
+        sb["outline"][0]["media"][0].pop(k)
+    save_json(wp(work, "storyboard"), sb)
+    assert sb_mod.export_index(work) == 0                      # 未跑 dedup 的旧制品可导
+    m = load_json(out / "video_index.json")["outline"][0]["media"][0]
+    assert m["dedup_group"] is None and m["dedup_primary"] is True
+
+
+def test_export_output_validates_against_json_schema(tmp_path):
+    jsonschema = pytest.importorskip("jsonschema")             # 仅 dev 依赖,运行期零 pip 不破
+    out, work = _export_work(tmp_path)
+    assert sb_mod.export_index(work) == 0
+    schema = load_json(Path(__file__).resolve().parent.parent / "schemas" / "video_index.schema.json")
+    doc = load_json(out / "video_index.json")
+    jsonschema.validate(doc, schema)                           # 正例:导出物与规范一致
+    bad = {k: v for k, v in doc.items() if k != "transcript"}
+    with pytest.raises(jsonschema.exceptions.ValidationError):  # 负例:schema 真有牙齿
+        jsonschema.validate(bad, schema)

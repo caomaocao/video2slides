@@ -1,18 +1,27 @@
-"""storyboard.json 校验与渲染前置聚合(spec §6、§7 引用校验、§8.4 前置)。"""
+"""storyboard.json 校验、渲染前置聚合与 video_index 导出(spec §6、§6.5、§7 引用校验、§8.4 前置)。"""
 from __future__ import annotations
 
 import argparse
 import difflib
 import re
+import shutil
 import sys
 from pathlib import Path
 
-from common import emit, load_json, rgb_signature, save_json, sig_diff_ratio, wp
+from common import emit, is_fresh, load_json, rgb_signature, save_json, sig_diff_ratio, wp
 
 _PUNCT = re.compile(r"[\s,，。、.!！?？:：;；\"'“”‘’()（）\[\]【】《》<>—\-…·]+")
 REQUIRED_NODE_KEYS = ("id", "title", "t_start", "t_end", "evidence")
 # 切片3 分章校验容差:CH_L1_TOL 容纳 chat 家族 45s 块级时间戳的边界微调(最坏 22.5s)
 CH_EDGE_TOL, CH_SEAM_TOL, CH_L1_TOL = 1.0, 0.5, 30.0
+
+# 导出契约(spec v0.5 §6.5):规范本体在 schemas/video_index.schema.json,此处为运行期 stdlib 校验子集
+SCHEMA_VERSION = "1.0.0"
+PROXY_RESOLUTION = "proxy-360p"
+_SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
+_PLATFORMS = {"youtube", "bilibili", "local"}
+_GRANULARITIES = {"segment", "sentence", "chunk-45s"}
+_ASR_GRANULARITY = {"mimo": "chunk-45s", "qwen": "chunk-45s", "funasr": "sentence"}
 
 
 def norm_text(s: str) -> str:
@@ -133,6 +142,187 @@ def dedup_across_nodes(sb: dict) -> dict:
     return report
 
 
+def _granularity(source: str) -> str:
+    """时间戳精度推导(spec v0.5 §6.5):chat 家族块级、funasr 句级,其余(字幕/transcriptions)段级。"""
+    if (source or "").startswith("asr:"):
+        return _ASR_GRANULARITY.get(source.split(":", 1)[1], "segment")
+    return "segment"
+
+
+def _claim_copy(src, name: str, copies: dict, errors: list, nid: str):
+    """登记一份待拷贝媒体,返回导出相对路径;同一源文件复用同一目标(poster 与帧共享)。"""
+    if not src:
+        errors.append(f"节点 {nid} media 缺源文件路径")
+        return None
+    if src in copies:
+        return copies[src]
+    if not Path(src).exists():
+        errors.append(f"节点 {nid} 媒体源文件不存在: {src}")
+        return None
+    rel, n = f"frames/{name}", 2
+    while rel in copies.values():           # 撞名(同节点同秒双帧)加序号
+        stem, _, ext = name.rpartition(".")
+        rel = f"frames/{stem}_{n}.{ext}"
+        n += 1
+    copies[src] = rel
+    return rel
+
+
+def _export_nodes(nodes, copies: dict, errors: list) -> list:
+    """递归把内部大纲节点归一化为导出形态:内部字段(proxy_path/finalized/on_page)不外泄。"""
+    out_nodes = []
+    for nd in nodes or []:
+        nid = str(nd.get("id", "?"))
+        media_out = []
+        for m in nd.get("media") or []:
+            if m.get("type") == "frame":
+                rel = _claim_copy(m.get("proxy_path"), f"{nid}_{(m.get('t') or 0):.1f}.jpg",
+                                  copies, errors, nid)
+                media_out.append({"type": "frame", "path": rel, "t": m.get("t"),
+                                  "resolution": PROXY_RESOLUTION,
+                                  "score": m.get("score"), "reason": m.get("reason"),
+                                  "dedup_group": m.get("dedup_group"),
+                                  "dedup_primary": m.get("dedup_primary", True)})
+            elif m.get("type") == "clip":
+                poster = (_claim_copy(m.get("poster"), f"{nid}_poster_{(m.get('t_start') or 0):.1f}.jpg",
+                                      copies, errors, nid) if m.get("poster") else None)
+                media_out.append({"type": "clip", "t_start": m.get("t_start"),
+                                  "t_end": m.get("t_end"), "poster": poster,
+                                  "reason": m.get("reason")})
+        out_nodes.append({"id": nid, "level": nd.get("level"), "title": nd.get("title"),
+                          "summary": nd.get("summary") or "",
+                          "t_start": nd.get("t_start"), "t_end": nd.get("t_end"),
+                          "evidence": nd.get("evidence") or [],
+                          "media": media_out,
+                          "children": _export_nodes(nd.get("children"), copies, errors)})
+    return out_nodes
+
+
+def _export_video_block(sb_video: dict | None, meta: dict) -> dict:
+    """video 块:storyboard.video(宿主写入的语义字段)为底,meta/source 补机械字段;signals 指向 .work 不外泄。"""
+    src = meta.get("source") or {}
+    v = {k: val for k, val in (sb_video or {}).items() if k != "signals"}
+    v.update(title=meta.get("title") or v.get("title") or "",
+             duration=float(meta.get("duration") or v.get("duration") or 0),
+             uploader=meta.get("uploader"),
+             language=meta.get("language") or v.get("language"),
+             platform=src.get("platform"),
+             source_url=src.get("canonical_url") or src.get("path"),
+             badge_url_template=src.get("badge_url_template"))
+    v.setdefault("genre", None)
+    v.setdefault("visual_form", [])
+    v.setdefault("priors", {})
+    return v
+
+
+def validate_index(doc: dict) -> list[str]:
+    """导出契约的运行期校验(stdlib 手写子集;测试以 jsonschema 对拍 schemas/ 规范防漂移)。"""
+    errs: list[str] = []
+    if not _SEMVER.match(doc.get("schema_version") or ""):
+        errs.append("schema_version 非语义化版本")
+    v = doc.get("video") or {}
+    if v.get("platform") not in _PLATFORMS:
+        errs.append(f"platform 非法: {v.get('platform')}")
+    duration = v.get("duration")
+    if not isinstance(duration, (int, float)) or duration <= 0:
+        errs.append("video.duration 必须为正数")
+        duration = float("inf")
+    badge = v.get("badge_url_template")
+    if v.get("platform") == "local":
+        if badge is not None:
+            errs.append("platform=local 的 badge_url_template 应为 null")
+    elif not (isinstance(badge, str) and "{t}" in badge):
+        errs.append("badge_url_template 缺 {t} 占位")
+    tr = doc.get("transcript") or {}
+    if tr.get("timestamp_granularity") not in _GRANULARITIES:
+        errs.append(f"timestamp_granularity 非法: {tr.get('timestamp_granularity')}")
+    seg_text: dict = {}
+    for s in tr.get("segments") or []:
+        sid = s.get("id")
+        if not isinstance(sid, int) or sid in seg_text:
+            errs.append(f"segment id 非法或重复: {sid}")
+            continue
+        seg_text[sid] = s.get("text") or ""
+    if not seg_text:
+        errs.append("transcript.segments 为空")
+    groups: dict[str, int] = {}
+
+    def walk(nodes):
+        for nd in nodes or []:
+            nid = nd.get("id", "?")
+            missing = [k for k in ("id", "level", "title", "summary", "t_start", "t_end",
+                                   "evidence", "media", "children") if k not in nd]
+            if missing:
+                errs.append(f"节点 {nid} 缺字段: {missing}")
+            if not nd.get("evidence"):
+                errs.append(f"节点 {nid} evidence 为空")
+            ts, te = nd.get("t_start"), nd.get("t_end")
+            if not (isinstance(ts, (int, float)) and isinstance(te, (int, float))
+                    and 0 <= ts < te <= duration + 1):
+                errs.append(f"节点 {nid} 时间窗非法: [{ts}, {te}]")
+            for ev in nd.get("evidence") or []:
+                seg = seg_text.get(ev.get("segment_id"))
+                if seg is None:
+                    errs.append(f"节点 {nid} evidence 指向不存在的 segment: {ev.get('segment_id')}")
+                elif not quote_ok(ev.get("quote", ""), seg):
+                    errs.append(f"节点 {nid} quote 不在所引段原文中: {ev.get('quote', '')!r}")
+            for m in nd.get("media") or []:
+                if m.get("type") == "frame":
+                    if not (isinstance(m.get("path"), str) and m["path"].startswith("frames/")):
+                        errs.append(f"节点 {nid} frame path 非 frames/ 相对路径: {m.get('path')}")
+                    if not isinstance(m.get("dedup_primary"), bool):
+                        errs.append(f"节点 {nid} frame 缺 dedup_primary 布尔")
+                    if m.get("dedup_group"):
+                        groups[m["dedup_group"]] = (groups.get(m["dedup_group"], 0)
+                                                    + bool(m.get("dedup_primary")))
+                elif m.get("type") == "clip":
+                    if m.get("poster") is not None and not str(m["poster"]).startswith("frames/"):
+                        errs.append(f"节点 {nid} clip poster 非 frames/ 相对路径")
+                else:
+                    errs.append(f"节点 {nid} media type 非法: {m.get('type')}")
+            walk(nd.get("children"))
+
+    if not doc.get("outline"):
+        errs.append("outline 为空")
+    walk(doc.get("outline"))
+    for gid, n_primary in groups.items():
+        if n_primary != 1:
+            errs.append(f"dedup 组 {gid} 的 primary 数为 {n_primary},应恰为 1")
+    return errs
+
+
+def export_index(work: Path | str, force: bool = False) -> int:
+    """打包导出(spec v0.5 §6.5):组装 video_index.json + frames/,机械校验不过则不产出(exit 5)。
+    导出物只读、自包含(整 <OUT> 可迁移,删 .work/ 不断链);制品新于上游时跳过(续跑契约)。"""
+    work = Path(work)
+    out_dir = work.parent
+    doc_p = out_dir / "video_index.json"
+    ups = [wp(work, "storyboard"), wp(work, "transcript"), wp(work, "meta")]
+    if not force and is_fresh(doc_p, *ups):
+        emit(f"video_index: {doc_p}(已最新,跳过)")
+        return 0
+    sb, transcript, meta = (load_json(p) for p in ups)
+    copies: dict[str, str] = {}
+    errors: list[str] = []
+    doc = {"schema_version": SCHEMA_VERSION,
+           "generator": {"skill": "video2slides", "spec": "v0.5"},
+           "video": _export_video_block(sb.get("video"), meta),
+           "transcript": {"source": transcript.get("source") or "",
+                          "timestamp_granularity": _granularity(transcript.get("source") or ""),
+                          "segments": transcript.get("segments") or []},
+           "outline": _export_nodes(sb.get("outline"), copies, errors)}
+    errors += validate_index(doc)
+    if errors:
+        emit("export: 契约校验不通过,不产出文档(宁缺毋滥)", *(f"  {e}" for e in errors))
+        return 5
+    (out_dir / "frames").mkdir(parents=True, exist_ok=True)
+    for src, rel in copies.items():
+        shutil.copy2(src, out_dir / rel)
+    save_json(doc_p, doc)
+    emit(f"video_index: {doc_p}({len(copies)} 帧资产,schema {SCHEMA_VERSION})")
+    return 0
+
+
 def aggregate_media(outline: list, depth: int, k: int = 2) -> dict:
     """深度 ≤depth 的节点若有更深子树,聚合子树叶子 media 按 score 降序取 k(spec §6:纯排序,不碰视频)。"""
     agg = {}
@@ -156,13 +346,16 @@ def aggregate_media(outline: list, depth: int, k: int = 2) -> dict:
 
 
 def main() -> int:
-    """CLI: validate/dedup/aggregate."""
+    """CLI: validate/dedup/aggregate/export."""
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["validate", "dedup", "aggregate"])
+    ap.add_argument("cmd", choices=["validate", "dedup", "aggregate", "export"])
     ap.add_argument("--work", required=True)
     ap.add_argument("--depth", type=int, default=2)
+    ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
     work = Path(args.work)
+    if args.cmd == "export":
+        return export_index(work, force=args.force)
     sb = load_json(wp(work, "storyboard"))
 
     if args.cmd == "validate":
