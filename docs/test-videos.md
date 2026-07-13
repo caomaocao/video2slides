@@ -167,3 +167,17 @@
 4. **finalize 7/10 成功 3 降级**(1.1/2.1/3.4 高清直链两轮未取到):降级帧按 SKILL 拷入 assets/ 并标「代理画质」,交付自包含不受影响。
 5. **export/notes 新链路一次跑通**:export 同帧复用(12 media→11 文件)、granularity=segment、badge 模板正确;notes.md 标题层级/跳转链接/引用/配图齐全,与 deck 同源同粒度。
 6. 切片 4 剩余实跑:#11 p02(B 站)、>30min 分章一支、本地一支(验笔记时间戳降级)。
+
+## 切片 4 实跑第 2/3 例(2026-07-13,#11 p02 + 本地 #9,feat/slice4-video-index)
+
+两例由 subagent 并行照当前分支 SKILL.md 全流程实跑(交互三问预置:形态=两者/中档/跟随视频),均在 dedup 仲裁后、export 之后撞 Fable 5 额度中止,交付物已完整落盘,由主会话补跑 export --force/notes 保一致并统一 QA——**两例 QA 全绿**(索引文档必查、视图级唯一性无违反、角标格式与窗内、笔记死链、本地时间戳降级)。
+
+**#11 p02(B 站,`nlp_p02_slice4_20260713/`)**:ai-zh 字幕(cookie)403 段/segment 粒度、4 章 12 叶、候选 17。轴 A 探针目验确认 **screen-recording**(讲义文档录屏,如实记录未改标 slide-driven)。dedup 3 组各恰一 primary(仲裁后);export 12 帧资产;finalize 8 定稿 0 降级(cookie 下高清直链稳定);deck 13 页(标题+12 叶,章未单独成页),角标 `?p=2&t=<n>` 格式正确。
+- **发现**:录屏形态下标注式 dedup 表现稳健——渐进讲义页(g1/g2/g3)误组由宿主拆解,零 media 丢失;B 站 cookie 流程 + 分 P `?p=2` 取流 + 定稿全部一次通过,新 export/notes 链路无平台特异问题。
+
+**本地 #9(`local_slice4_20260713/`,"一个主动接班的汽配二代"/杭商故事,8:24)**:funasr ASR 260 段/**sentence 粒度**、4 章 10 叶、候选 18。轴 A **talking-head**、轴 B 访谈/播客→Paper & Ink。
+- **local 契约字段全对**:`platform=local`、`badge_url_template=null`、`source_url=原始绝对路径`(storyboard.video 里为 None,export 从 meta.source.path 正确回填——设计如此,非 bug);export 9 帧资产、finalize 9 定稿 0 降级(本地文件高清恒可得)。
+- **票面重点核验通过**:notes.md 时间戳**降级为 mm:ss 纯文本、零跳转链接**;deck 角标为内嵌 `<video src="file://…">` 弹层 + JS `currentTime` 跳播,弹层显示源路径,deck 不拷视频文件。
+- **发现**:talking-head 场景 dedup 误组经宿主**全部拆开**(最终 0 组,同机位同背景致 RGB 签名误判,与解锁批 #15/#9b/#9c 结论一致)——标注化下拆组即置 null,是安全元数据操作,印证 P2 判据升级只需换签名不动数据形状。
+
+**切片 4 实跑进度**:#13(slide-driven)、#11 p02(screen-recording)、本地 #9(talking-head)三例通过,覆盖三种主要 visual_form;仅剩 >30min 分章一支未跑(即票04 最后一项)。三例均验证:索引文档无条件产出且契约校验通过、双渲染器只读文档跑通、slide 视图级唯一性生效、移除 `.work/` 交付物完整。
