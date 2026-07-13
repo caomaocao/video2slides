@@ -272,12 +272,19 @@ def validate_index(doc: dict) -> list[str]:
                 if m.get("type") == "frame":
                     if not (isinstance(m.get("path"), str) and m["path"].startswith("frames/")):
                         errs.append(f"节点 {nid} frame path 非 frames/ 相对路径: {m.get('path')}")
+                    if not isinstance(m.get("t"), (int, float)):
+                        errs.append(f"节点 {nid} frame 缺数值 t")
+                    if not (isinstance(m.get("resolution"), str) and m["resolution"]):
+                        errs.append(f"节点 {nid} frame 缺 resolution")
                     if not isinstance(m.get("dedup_primary"), bool):
                         errs.append(f"节点 {nid} frame 缺 dedup_primary 布尔")
                     if m.get("dedup_group"):
                         groups[m["dedup_group"]] = (groups.get(m["dedup_group"], 0)
                                                     + bool(m.get("dedup_primary")))
                 elif m.get("type") == "clip":
+                    if not (isinstance(m.get("t_start"), (int, float))
+                            and isinstance(m.get("t_end"), (int, float))):
+                        errs.append(f"节点 {nid} clip 缺数值 t_start/t_end")
                     if m.get("poster") is not None and not str(m["poster"]).startswith("frames/"):
                         errs.append(f"节点 {nid} clip poster 非 frames/ 相对路径")
                 else:

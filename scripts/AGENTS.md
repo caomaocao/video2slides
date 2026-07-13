@@ -21,7 +21,8 @@
 | `funasr_runner.py` | 仅在 `FUNASR_VENV` 内经 subprocess 执行,句级时间戳 | 真 stdout 只出 JSON,依赖噪声改道 stderr(守 JSON 契约) |
 | `signals.py` | 一遍 ffmpeg 产 `scene_scores.json`(五处下游共读);`--chapter-hints` 划章信号 | native 透传 / 信号合成 / uniform 兜底,落 `chapter_hints.json` |
 | `frames.py` | 复合单遍抽帧 + RGB 滑窗去重(最近 4 帧)+ 打分剪枝 + contact sheet;`--finalize` 懒抓高清 | 窗口对齐只前扩不后缩;宽窗(>90s)候选槽均匀采样;finalize 只处理真正上页的 media |
-| `storyboard.py` | 校验器:schema / 时间戳 / quote 存在性 / 跨节点去重;`aggregate` 变粒度;分章校验 | `chapter_plan` 存在时校验章区间连续覆盖 + 与 level-1 一一对应 |
+| `storyboard.py` | 校验器:schema / 时间戳 / quote 存在性 / 跨节点去重**标注**(dedup_group/primary,不删除);`aggregate` 变粒度;分章校验;`export` 导出 video_index 公开契约(组装+机械校验,不过不产出) | `chapter_plan` 存在时校验章区间连续覆盖 + 与 level-1 一一对应;导出契约规范本体在 `schemas/video_index.schema.json`,运行期为 stdlib 手写子集 |
+| `notes.py` | markdown 笔记渲染器:只读 `video_index.json` + `frames/`,**禁碰 `.work/`**(契约完备性验收器) | 契约字段一律 `[]` 取值,缺字段/缺资产 exit 5 不产残缺笔记;本地视频时间戳退化 mm:ss 纯文本 |
 
 ## 别做
 

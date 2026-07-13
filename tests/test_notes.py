@@ -78,3 +78,20 @@ def test_notes_keeps_dedup_annotation_visible(tmp_path, doc_fixture):
     assert notes_mod.render_notes(out / "video_index.json", depth=2) == 0
     md = (out / "notes.md").read_text(encoding="utf-8")
     assert "frames/1_3.0.jpg" in md and "g1" in md      # 非 primary 不被丢弃,标注可见
+
+
+def test_notes_requires_dedup_group_key(tmp_path, capsys, doc_fixture):
+    # 评审修复回归:dedup_group 是契约必选,缺失须失败而非静默(验收器牙齿)
+    out = doc_fixture(tmp_path)
+    doc = load_json(out / "video_index.json")
+    doc["outline"][0]["media"][0].pop("dedup_group")
+    save_json(out / "video_index.json", doc)
+    assert notes_mod.render_notes(out / "video_index.json", depth=2) == 5
+    assert "dedup_group" in capsys.readouterr().out
+
+
+def test_notes_rejects_corrupt_json(tmp_path, capsys, doc_fixture):
+    out = doc_fixture(tmp_path)
+    (out / "video_index.json").write_text("{broken", encoding="utf-8")
+    assert notes_mod.render_notes(out / "video_index.json", depth=2) == 5
+    assert "JSON" in capsys.readouterr().out

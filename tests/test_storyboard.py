@@ -269,3 +269,15 @@ def test_export_output_validates_against_json_schema(tmp_path, export_work):
     bad = {k: v for k, v in doc.items() if k != "transcript"}
     with pytest.raises(jsonschema.exceptions.ValidationError):  # 负例:schema 真有牙齿
         jsonschema.validate(bad, schema)
+
+
+def test_export_blocks_on_missing_resolution_and_clip_times(tmp_path, export_work):
+    # 评审修复回归:validate_index 补齐 frame.t/resolution 与 clip 数值必选(schema required 对齐)
+    out, work = export_work(tmp_path)
+    assert sb_mod.export_index(work) == 0
+    doc = load_json(out / "video_index.json")
+    doc["outline"][0]["media"][0].pop("resolution")
+    assert any("resolution" in e for e in sb_mod.validate_index(doc))
+    doc2 = load_json(out / "video_index.json")
+    doc2["outline"][0]["media"][1].pop("t_start")
+    assert any("t_start" in e for e in sb_mod.validate_index(doc2))

@@ -54,8 +54,11 @@ video2slides/
 │   ├── funasr_runner.py # runs only inside FUNASR_VENV via subprocess; JSON on real stdout (dependency noise redirected to stderr)
 │   ├── signals.py
 │   ├── frames.py       # candidate extraction + dedup + scoring + contact sheets + --finalize
-│   └── storyboard.py   # schema/timestamp/quote-existence/cross-node-dedup validation
-# (rendering calls the frontend-slides skill directly — no bundled render code)
+│   ├── storyboard.py   # schema/timestamp/quote-existence validation + cross-node dedup annotation + export (video_index assembly & contract checks)
+│   └── notes.py        # markdown notes renderer: reads ONLY video_index.json + frames/ (contract-completeness acceptance harness)
+├── schemas/
+│   └── video_index.schema.json  # exported public contract (normative; runtime validation is a hand-written stdlib subset)
+# (slide rendering calls the frontend-slides skill directly — no bundled render code)
 ```
 
 ## Dependency policy

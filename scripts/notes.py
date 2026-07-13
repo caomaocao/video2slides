@@ -57,7 +57,7 @@ def _render(doc: dict, base: Path, depth: int) -> list[str]:
                     if not (base / m["path"]).exists():
                         raise AssetMissing(m["path"])
                     cap = ts_link(m["t"], badge)
-                    if m.get("dedup_group"):
+                    if m["dedup_group"]:        # 契约必选字段,缺失即 KeyError(验收器牙齿)
                         cap += f"(画面与同组要点共用:{m['dedup_group']})"
                     lines.extend([f"![{fmt_ts(m['t'])}]({m['path']})", f"*{cap}*", ""])
                 elif m["type"] == "clip":
@@ -81,7 +81,11 @@ def render_notes(index_path: Path | str, depth: int = 2) -> int:
     if not index_path.exists():
         emit(f"索引文档不存在: {index_path}")
         return 5
-    doc = json.loads(index_path.read_text(encoding="utf-8"))
+    try:
+        doc = json.loads(index_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        emit(f"索引文档非法 JSON,拒绝渲染: {e}")
+        return 5
     try:
         lines = _render(doc, base, depth)
     except KeyError as e:
