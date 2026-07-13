@@ -47,6 +47,7 @@ def validate(sb: dict, transcript: dict, duration: float) -> dict:
     每条 evidence 的 segment_id 存在且 quote_ok 通过、media(若有)proxy_path 文件存在且 finalized 为 bool。"""
     segs = {s["id"]: s["text"] for s in transcript["segments"]}
     r = {"ok": True, "schema_errors": [], "quote_failures": [], "time_errors": []}
+    dedup_groups: dict[str, int] = {}   # 组 id → primary 计数(标注一致性,v0.5 §6;无标注的旧制品跳过)
     for nd in _walk(sb.get("outline") or []):
         nid = nd.get("id", "?")
         missing = [k for k in REQUIRED_NODE_KEYS if k not in nd]
@@ -65,6 +66,12 @@ def validate(sb: dict, transcript: dict, duration: float) -> dict:
                 r["schema_errors"].append(f"节点 {nid} media 缺 finalized 布尔")
             if m.get("proxy_path") and not Path(m["proxy_path"]).exists():
                 r["schema_errors"].append(f"节点 {nid} proxy_path 不存在: {m['proxy_path']}")
+            if m.get("dedup_group"):
+                dedup_groups[m["dedup_group"]] = (dedup_groups.get(m["dedup_group"], 0)
+                                                  + bool(m.get("dedup_primary")))
+    for gid, n_primary in dedup_groups.items():
+        if n_primary != 1:
+            r["schema_errors"].append(f"dedup 组 {gid} 的 primary 数为 {n_primary},应恰为 1")
     r["ok"] = not (r["schema_errors"] or r["quote_failures"] or r["time_errors"])
     return r
 
@@ -93,33 +100,36 @@ def validate_chapter_plan(plan: dict, outline: list, duration: float) -> list[st
     return errs
 
 
-def dedup_across_nodes(sb: dict, candidates: list[dict]) -> dict:
-    """跨要点媒体唯一性(spec §6):分高者优先保位,重复者回退未用候选,耗尽降纯文字。"""
+def dedup_across_nodes(sb: dict) -> dict:
+    """跨要点媒体去重标注(spec v0.5 §6):重复组打 dedup_group/dedup_primary,不删除、不替换。
+
+    分组:按 score 降序遍历,与各组代表(即组内 primary,遍历序首个成员)签名比对,
+    变化占比 < 0.10 归入该组;组按发现序命名 g1、g2…。仅 ≥2 成员的组落 group id,
+    单帧 dedup_group=None;所有 frame media 均写 dedup_primary(唯一性归 slide 视图层,
+    宿主仲裁只改标注:拆组/换 primary)。"""
     picked = [(nd, m) for nd in _walk(sb["outline"]) for m in (nd.get("media") or [])
               if m.get("type") == "frame" and m.get("proxy_path")]
     picked.sort(key=lambda nm: -(nm[1].get("score") or 0))
-    kept_sigs: list[bytes] = []
-    used = {m["proxy_path"] for _, m in picked}
-    report = {"replaced": [], "dropped": []}
+    groups: list[dict] = []
     for nd, m in picked:
         sig = rgb_signature(m["proxy_path"])
-        if all(sig_diff_ratio(sig, k) >= 0.10 for k in kept_sigs):
-            kept_sigs.append(sig)
-            continue
-        alts = sorted((c for c in candidates
-                       if c["node_id"] == nd["id"] and not c.get("dup") and c["file"] not in used),
-                      key=lambda c: -(c.get("score") or 0))
-        for alt in alts:
-            alt_sig = rgb_signature(alt["file"])
-            if all(sig_diff_ratio(alt_sig, k) >= 0.10 for k in kept_sigs):
-                report["replaced"].append({"node": nd["id"], "from": m["proxy_path"], "to": alt["file"]})
-                m.update(proxy_path=alt["file"], t=alt["t"], score=alt.get("score", 0), reason=alt["reason"])
-                used.add(alt["file"])
-                kept_sigs.append(alt_sig)
+        for g in groups:
+            if sig_diff_ratio(sig, g["sig"]) < 0.10:
+                g["members"].append((nd, m))
                 break
         else:
-            nd["media"].remove(m)       # 候选耗尽:该要点转纯文字(spec §11)
-            report["dropped"].append(nd["id"])
+            groups.append({"sig": sig, "members": [(nd, m)]})
+    report = {"groups": []}
+    for g in groups:
+        if len(g["members"]) == 1:
+            g["members"][0][1].update(dedup_group=None, dedup_primary=True)
+            continue
+        gid = f"g{len(report['groups']) + 1}"
+        for rank, (nd, m) in enumerate(g["members"]):
+            m.update(dedup_group=gid, dedup_primary=rank == 0)   # 首位即组内最高分
+        report["groups"].append({"group": gid,
+                                 "members": [{"node": nd["id"], "t": m.get("t")}
+                                             for nd, m in g["members"]]})
     return report
 
 
@@ -168,9 +178,11 @@ def main() -> int:
              *(f"  {k}: {v}" for k, v in r.items() if k != "ok" and v))
         return 0 if r["ok"] else 5
     if args.cmd == "dedup":
-        rep = dedup_across_nodes(sb, load_json(wp(work, "candidates")))
+        rep = dedup_across_nodes(sb)
         save_json(wp(work, "storyboard"), sb)
-        emit(f"跨要点去重: 替换 {len(rep['replaced'])},降纯文字 {len(rep['dropped'])}")
+        emit(f"跨要点去重标注: 重复组 {len(rep['groups'])}(不删除,唯一性由 slide 视图层执行)",
+             *(f"  {g['group']}: " + ", ".join(f"{x['node']}@{x['t']}" for x in g["members"])
+               for g in rep["groups"]))
         return 0
     import json
     print(json.dumps(aggregate_media(sb["outline"], args.depth), ensure_ascii=False, indent=1))

@@ -95,30 +95,48 @@ def test_quote_ok_fuzzy_matches_short_quote_in_long_segment():
     assert not sb_mod.quote_ok("量子纠缠的基本原理", seg)
 
 
-def test_dedup_drops_all_mutual_dups_without_crash(tmp_path):
+# 切片4 票01:dedup 标注化——重复组打标注,不删除不替换(spec v0.5 §6)
+def test_dedup_annotates_groups_without_deletion(tmp_path):
     imgs = []
     for i in range(3):
         p = tmp_path / f"r{i}.jpg"; _mkimg(p, "red"); imgs.append(str(p))
     sb = {"outline": [_node("1", imgs[0], 0.9), _node("2", imgs[1], 0.8), _node("3", imgs[2], 0.7)]}
-    rep = sb_mod.dedup_across_nodes(sb, candidates=[])
-    assert rep["dropped"] == ["2", "3"] and rep["replaced"] == []
-    assert sb["outline"][0]["media"] and not sb["outline"][1]["media"] and not sb["outline"][2]["media"]
+    rep = sb_mod.dedup_across_nodes(sb)
+    # media 总数不变:任何节点不被降级纯文字
+    assert all(nd["media"] for nd in sb["outline"])
+    # 同组一致,恰一个 primary 且落在最高分节点
+    ms = [nd["media"][0] for nd in sb["outline"]]
+    assert len({m["dedup_group"] for m in ms}) == 1 and ms[0]["dedup_group"] is not None
+    assert [m["dedup_primary"] for m in ms] == [True, False, False]
+    assert len(rep["groups"]) == 1
+    assert [x["node"] for x in rep["groups"][0]["members"]] == ["1", "2", "3"]
 
 
-def test_dedup_replacement_rechecked_against_kept(tmp_path):
+def test_dedup_singletons_get_null_group_and_primary_true(tmp_path):
     r1 = tmp_path / "r1.jpg"; _mkimg(r1, "red")
     r2 = tmp_path / "r2.jpg"; _mkimg(r2, "red")
-    r3 = tmp_path / "r3.jpg"; _mkimg(r3, "red")     # 节点2的备选也是红→必须被拒
     b1 = tmp_path / "b1.jpg"; _mkimg(b1, "blue")
-    sb = {"outline": [_node("1", str(r1), 0.9), _node("2", str(r2), 0.8)]}
-    cands_red = [{"node_id": "2", "file": str(r3), "t": 5.0, "reason": "scene-peak", "score": 0.5, "dup": False}]
-    rep = sb_mod.dedup_across_nodes(sb, cands_red)
-    assert rep["dropped"] == ["2"] and rep["replaced"] == []
-    # 蓝色备选则替换成功
-    sb2 = {"outline": [_node("1", str(r1), 0.9), _node("2", str(r2), 0.8)]}
-    cands_blue = [{"node_id": "2", "file": str(b1), "t": 5.0, "reason": "scene-peak", "score": 0.5, "dup": False}]
-    rep2 = sb_mod.dedup_across_nodes(sb2, cands_blue)
-    assert len(rep2["replaced"]) == 1 and sb2["outline"][1]["media"][0]["proxy_path"] == str(b1)
+    sb = {"outline": [_node("1", str(r1), 0.9), _node("2", str(r2), 0.8), _node("3", str(b1), 0.5)]}
+    rep = sb_mod.dedup_across_nodes(sb)
+    m1, m2, m3 = (nd["media"][0] for nd in sb["outline"])
+    assert m1["dedup_group"] == m2["dedup_group"] and m1["dedup_group"] is not None
+    assert m1["dedup_primary"] and not m2["dedup_primary"]
+    assert m3["dedup_group"] is None and m3["dedup_primary"]    # 无重复:组 null、自身即 primary
+    assert len(rep["groups"]) == 1
+
+
+def test_validate_checks_dedup_primary_uniqueness(tmp_path):
+    img = tmp_path / "a.jpg"; _mkimg(img, "red")
+    def annotated(p1: bool, p2: bool) -> dict:
+        s = {"outline": [_node("1", str(img), 0.9), _node("2", str(img), 0.8)]}
+        s["outline"][0]["media"][0].update(dedup_group="g1", dedup_primary=p1)
+        s["outline"][1]["media"][0].update(dedup_group="g1", dedup_primary=p2)
+        s["outline"][0]["evidence"] = [{"segment_id": 0, "quote": "大家好"}]
+        s["outline"][1]["evidence"] = [{"segment_id": 0, "quote": "欢迎来到本期视频"}]
+        return s
+    assert sb_mod.validate(annotated(True, False), TRANSCRIPT, 600.0)["ok"]     # 正确标注通过
+    r = sb_mod.validate(annotated(True, True), TRANSCRIPT, 600.0)               # 双 primary 被拦
+    assert not r["ok"] and any("primary" in e for e in r["schema_errors"])
 
 
 # Task 4: 分章校验测试
