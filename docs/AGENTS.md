@@ -4,13 +4,13 @@
 
 ## 权威顺序
 
-- **`video2slides-spec-v0.4.md`** —— 设计 source of truth,reviewed、decision-final。做架构判断以它为准。
-- **`video2slides-spec-v0.3.md`** —— 历史快照,**只读勿改**,保留用于追溯。
+- **`video2slides-spec-v0.5.md`** —— 设计 source of truth(2026-07-13「制品升格」决议版,reviewed)。做架构判断以它为准。
+- **`video2slides-spec-v0.4.md`** / **`video2slides-spec-v0.3.md`** —— 历史快照,**只读勿改**,保留用于追溯。
 - **`test-videos.md`** —— 27 个已核实测试源 + 全部试产发现的登记册。新发现**追加**,不删旧结论;矩阵按 ASR 分家实跑标注。
 
 ## 子目录
 
-- **`superpowers/plans/`** —— 各切片的实现计划(TDD 任务分解 + 写死的验收编号),命名 `YYYY-MM-DD-<slice>.md`。
+- **`superpowers/plans/`** —— 各切片的实现计划(TDD 任务分解 + 写死的验收编号),命名 `YYYY-MM-DD-<slice>.md`;拆票形态用目录 `YYYY-MM-DD-<slice>/NN-<slug>.md`(一票一文件,按依赖序编号,票内声明 Blocked by)。
 - **`superpowers/specs/`** —— 设计定稿产物。
 - **`daily-report/`** —— 每日日报,一天一文件,命名 `YYYY-MM-DD.md`。
 

@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-This repo is the codebase for **video2slides**: a Claude Code skill that turns a video (YouTube / Bilibili / local file) into a `frontend-slides`-style HTML deck, with slides carrying embedded keyframes/clips that jump back to the source video's timestamp.
+This repo is the codebase for **video2slides**: a Claude Code skill that turns a video (YouTube / Bilibili / local file) into a self-contained **video index document** (`video_index.json` + `frames/` — the outline↔transcript↔frames mapping as a versioned public contract, spec v0.5), rendered downstream into a `frontend-slides`-style HTML deck and/or markdown notes, with keyframes/clips that jump back to the source video's timestamp.
 
-The full design is written up in `docs/video2slides-spec-v0.4.md` (Chinese; v0.4 is the reviewed, decision-final version — v0.3 is kept as a historical snapshot). **Read it before making architectural decisions** — it is the source of truth; the summary below exists so you don't have to re-read all ~400 lines just to get oriented. Implementation status: slice 1 (subtitled slide-driven online video → outline → frames → HTML end-to-end, spec §13) and slice 2 (ASR three families + local file input) are implemented, review-closed and merged to main. The 27 verified test sources plus all production findings live in `docs/test-videos.md`. Next in the backlog: per-chapter outlines for long videos (slice 3), dedup criteria upgrade (P2).
+The full design is written up in `docs/video2slides-spec-v0.5.md` (Chinese; v0.5 是 2026-07-13 拷问式 review 定稿的「制品升格」决议版 — v0.4/v0.3 kept as historical snapshots). **Read it before making architectural decisions** — it is the source of truth; the summary below exists so you don't have to re-read all ~450 lines just to get oriented. Implementation status: slice 1 (subtitled slide-driven online video → outline → frames → HTML end-to-end), slice 2 (ASR three families + local file input) and slice 3 (long-video per-chapter outlines, merged 2026-07-13, 150 tests) are implemented, review-closed and merged to main. The 27 verified test sources plus all production findings live in `docs/test-videos.md`. Next in the backlog: **索引文档升格切片**(spec v0.5 §13:`storyboard.py export` + `schemas/video_index.schema.json` + dedup 标注化 + 交互点形态扩展 + `scripts/notes.py` 笔记渲染器),then dedup criteria upgrade (P2 — deliberately sequenced *after* dedup annotation lands, so the later upgrade only swaps the signature algorithm without touching the contract).
 
 > 语言约定：本仓库的**代码注释、commit message、文档（含 `docs/` 与新建 `.md`）一律用中文**。本文件除顶部固定前缀外，正文也用中文。
 
@@ -19,7 +19,7 @@ The full design is written up in `docs/video2slides-spec-v0.4.md` (Chinese; v0.4
 
 ## Target architecture (per the spec)
 
-Core invariant driving every design decision: **transcript → outline (content keys) → related frames (targeted per-node frame selection) → slide**.
+Core invariant driving every design decision: **transcript → outline (content keys) → related frames (targeted per-node frame selection) → video_index (exported index document) → renderer family (slides / notes / …)**. Since spec v0.5, the index document is the first-class deliverable and slides are one downstream view of it.
 
 Pipeline (deterministic scripts do the heavy/reproducible work; host Claude does semantic judgment; they hand off through structured artifacts, script stdout feeding directly into Claude's next step):
 
@@ -30,7 +30,8 @@ Pipeline (deterministic scripts do the heavy/reproducible work; host Claude does
 5. **Render layer** (host Claude + the `frontend-slides` skill) — user picks a target page-count/depth; shallow outline nodes aggregate top-k media from their leaf descendants by pure sorting over `storyboard.json` (no re-analysis needed to change granularity). `scripts/frames.py --finalize` then lazily re-fetches high-res frames/clips *only* for media that actually makes the page. `frontend-slides` renders the final fixed 1920×1080 HTML deck; timestamp badges deep-link to `youtube.com/watch?v=…&t=…` or `bilibili.com/video/BV…?t=…`.
 
 Key artifacts:
-- **`storyboard.json`** — the enforced contract between the analysis and render layers (full schema in spec §6). Either side can be re-implemented independently as long as this contract holds.
+- **`storyboard.json`** — since v0.5 the *internal working format* (lives in `.work/`, free to evolve; carries render-side bookkeeping like `on_page`/`final_path`; full schema in spec §6). Cross-node dedup is **annotation-based** (`dedup_group`/`dedup_primary`), not deletion — "one frame per page" is a slide-view policy, not a data fact.
+- **`video_index.json` + `frames/`** — the exported public contract (spec §6.5, **not yet implemented — next slice**): single JSON embedding full transcript segments (`timestamp_granularity` made explicit) + outline tree + proxy-quality selected frames, relative paths, validated against `schemas/video_index.schema.json`, `schema_version` field. All renderers' semantic input comes from this document only; it's read-only after export.
 - **`scene_scores.json`** — the shared per-frame signal basis (spec §8.0), computed once and consumed five ways.
 - **`frames_proxy/`** — proxy-resolution candidate/selected frames from the analysis pass, pre-finalization.
 
