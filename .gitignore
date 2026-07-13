@@ -1,11 +1,33 @@
-# Python-generated files
+# Python 产物
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
 
-# Virtual environments
-.venv
+# 虚拟环境(.venv 由 uv 管理,不入库;funasr 独立 venv 在仓库外)
+.venv/
+
+# 测试与工具缓存
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 编辑器 / IDE
 .idea/
+.vscode/
+
+# 操作系统(本仓库在 macOS + Dropbox 目录下,易生成)
+.DS_Store
+Thumbs.db
+
+# 密钥:运行期配置在 ~/.config/video2slides/.env,仓库内若出现 .env 一律不入库
+.env
+.env.*
+!.env.example
+
+# 流水线产物:所有中间制品落在输出目录的 .work/ 下(spec §3),仓库内试跑会生成
+.work/
