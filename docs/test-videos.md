@@ -181,3 +181,13 @@
 - **发现**:talking-head 场景 dedup 误组经宿主**全部拆开**(最终 0 组,同机位同背景致 RGB 签名误判,与解锁批 #15/#9b/#9c 结论一致)——标注化下拆组即置 null,是安全元数据操作,印证 P2 判据升级只需换签名不动数据形状。
 
 **切片 4 实跑进度**:#13(slide-driven)、#11 p02(screen-recording)、本地 #9(talking-head)三例通过,覆盖三种主要 visual_form;仅剩 >30min 分章一支未跑(即票04 最后一项)。三例均验证:索引文档无条件产出且契约校验通过、双渲染器只读文档跑通、slide 视图级唯一性生效、移除 `.work/` 交付物完整。
+
+## 切片 4 实跑第 4 例(2026-07-13,#12 分章长视频,feat/slice4-video-index)
+
+**#12 Karpathy《Building makemore Part 2: MLP》(75:39,`makemore_slice4_20260713/`)** 由 Sonnet subagent 全流程实跑(避 Fable 额度),补齐票04 唯一缺失的 **>30min 分章例**,QA 全绿:
+- **分章路径**:19 原生 chapters(source=native)按「只并不拆」语义合并至 **9 章**(合并对象均为 <2min 的过碎收尾/过渡章),章界首尾相接覆盖 [0,4539]。逐章生成共 **43 叶**;引用校验首轮 3 处 quote 跨滚动字幕分段边界失败,1 轮修复通过(≤2 轮预算内)。
+- **切片4 新链路**:export 首次 exit 0(43 帧资产)、finalize 43/43 定稿 0 降级、notes depth 2(179 处 `&t=<n>s` 链接)、deck 44 页(标题+43 叶,分章场景全展开是预期)。--lang zh 覆盖:大纲中文、evidence.quote 保英文原文,slide 端中英分块清晰。
+- **关键发现(比现有 SKILL 案例更极端的 dedup 假阳性)**:coding screen-recording 下 16×16 RGB 签名对「画面近静止、变化只在代码/终端文字」的截图几乎完全失效——**41/43 帧(95%)被机器误判重复**(持续存在的深色 Jupyter/摄像头边框主导低分辨率签名),远超现有「BPE 演示页」级案例。宿主目验全部拆组(最终 0 组)。**标注化在此极端场景仍零数据损失**——若沿用旧删除式语义,95% 帧会被删后靠宿主逐一恢复,不可行。P2 判据升级应把 coding 录屏列为最高优先级 FP 场景。
+- 无脚本 bug;setup/fetch/transcribe/signals/frames/storyboard/notes 全一次性正常退出。
+
+**切片 4 实跑验收四例完成** ✅:#13(slide-driven)/#11 p02(screen-recording,B站)/本地#9(talking-head)/#12(screen-recording coding,分章长视频),覆盖三形态 + 分章路径 + 在线字幕/B站cookie/本地ASR/YouTube自动字幕四种取流。四例均验证票04 五项核验标准全过。票04 可结项。
