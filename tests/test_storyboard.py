@@ -1,17 +1,10 @@
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 
 import storyboard as sb_mod
 from common import load_json, save_json, wp
-
-
-def _mkimg(path: Path, color: str) -> None:
-    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi",
-                    "-i", f"color={color}:s=64x64:d=0.1", "-frames:v", "1", "-y", str(path)],
-                   check=True)
 
 
 def _node(nid: str, img: str, score: float) -> dict:
@@ -98,10 +91,10 @@ def test_quote_ok_fuzzy_matches_short_quote_in_long_segment():
 
 
 # 切片4 票01:dedup 标注化——重复组打标注,不删除不替换(spec v0.5 §6)
-def test_dedup_annotates_groups_without_deletion(tmp_path):
+def test_dedup_annotates_groups_without_deletion(tmp_path, fake_rgb_signature):
     imgs = []
     for i in range(3):
-        p = tmp_path / f"r{i}.jpg"; _mkimg(p, "red"); imgs.append(str(p))
+        p = tmp_path / f"r{i}.jpg"; p.write_bytes(b"red"); imgs.append(str(p))
     sb = {"outline": [_node("1", imgs[0], 0.9), _node("2", imgs[1], 0.8), _node("3", imgs[2], 0.7)]}
     rep = sb_mod.dedup_across_nodes(sb)
     # media 总数不变:任何节点不被降级纯文字
@@ -114,10 +107,10 @@ def test_dedup_annotates_groups_without_deletion(tmp_path):
     assert [x["node"] for x in rep["groups"][0]["members"]] == ["1", "2", "3"]
 
 
-def test_dedup_singletons_get_null_group_and_primary_true(tmp_path):
-    r1 = tmp_path / "r1.jpg"; _mkimg(r1, "red")
-    r2 = tmp_path / "r2.jpg"; _mkimg(r2, "red")
-    b1 = tmp_path / "b1.jpg"; _mkimg(b1, "blue")
+def test_dedup_singletons_get_null_group_and_primary_true(tmp_path, fake_rgb_signature):
+    r1 = tmp_path / "r1.jpg"; r1.write_bytes(b"red")
+    r2 = tmp_path / "r2.jpg"; r2.write_bytes(b"red")
+    b1 = tmp_path / "b1.jpg"; b1.write_bytes(b"blue")
     sb = {"outline": [_node("1", str(r1), 0.9), _node("2", str(r2), 0.8), _node("3", str(b1), 0.5)]}
     rep = sb_mod.dedup_across_nodes(sb)
     m1, m2, m3 = (nd["media"][0] for nd in sb["outline"])
@@ -128,7 +121,7 @@ def test_dedup_singletons_get_null_group_and_primary_true(tmp_path):
 
 
 def test_validate_checks_dedup_primary_uniqueness(tmp_path):
-    img = tmp_path / "a.jpg"; _mkimg(img, "red")
+    img = tmp_path / "a.jpg"; img.write_bytes(b"img")   # validate 只查存在性,纯字节即可
     def annotated(p1: bool, p2: bool) -> dict:
         s = {"outline": [_node("1", str(img), 0.9), _node("2", str(img), 0.8)]}
         s["outline"][0]["media"][0].update(dedup_group="g1", dedup_primary=p1)
@@ -186,51 +179,8 @@ def test_validate_cli_without_chapter_plan_unchanged(tmp_path):
 
 
 # 切片4 票02:export 导出契约(spec v0.5 §6.5)——组装/校验/自包含/schema 对拍
-def _export_work(base, *, platform="youtube", tr_source="manual:zh", quote="Token 到底是什么"):
-    out = Path(base) / "out"
-    work = out / ".work"
-    fdir = work / "frames_proxy"; fdir.mkdir(parents=True)
-    img1 = fdir / "f_001.jpg"; img1.write_bytes(b"\xff\xd8img1")
-    img2 = fdir / "f_002.jpg"; img2.write_bytes(b"\xff\xd8img2")
-    src = {"youtube": {"platform": "youtube", "vid": "x", "part": None,
-                       "canonical_url": "https://www.youtube.com/watch?v=x",
-                       "badge_url_template": "https://www.youtube.com/watch?v=x&t={t}s"},
-           "local": {"platform": "local", "vid": "v", "part": None, "path": "/abs/v.mp4",
-                     "canonical_url": None, "badge_url_template": None}}[platform]
-    save_json(wp(work, "meta"), {"title": "测试片", "duration": 600.0, "language": "zh",
-                                 "uploader": "up", "source": src})
-    save_json(wp(work, "transcript"), {"language": "zh", "source": tr_source,
-                                       "segments": TRANSCRIPT["segments"]})
-    outline = [{"id": "1", "level": 1, "title": "开场", "summary": "s",
-                "t_start": 0.0, "t_end": 30.0,
-                "evidence": [{"segment_id": 1, "quote": quote}],
-                "media": [{"type": "frame", "proxy_path": str(img1), "final_path": None,
-                           "finalized": False, "t": 3.0, "reason": "scene-peak", "score": 0.9,
-                           "dedup_group": None, "dedup_primary": True},
-                          {"type": "clip", "final_path": None, "finalized": False,
-                           "t_start": 2.0, "t_end": 5.0, "poster": str(img1),
-                           "reason": "score-peak-window"}],
-                "children": [{"id": "1.1", "level": 2, "title": "细节", "summary": "",
-                              "t_start": 5.0, "t_end": 30.0,
-                              "evidence": [{"segment_id": 0, "quote": "大家好"}],
-                              "media": [{"type": "frame", "proxy_path": str(img2),
-                                         "final_path": None, "finalized": False, "t": 8.0,
-                                         "reason": "scene-peak", "score": 0.8,
-                                         "dedup_group": None, "dedup_primary": True}],
-                              "children": []}]}]
-    save_json(wp(work, "storyboard"),
-              {"video": {"title": "测试片", "duration": 600.0, "language": "zh",
-                         "genre": "课程/教程",
-                         "visual_form": [{"t_start": 0, "t_end": 600.0, "form": "slide-driven"}],
-                         "signals": {"scene_scores": "scene_scores.json"},
-                         "priors": {"chapters": [], "heatmap": [], "danmaku_density": [],
-                                    "page_boundaries": []}},
-               "outline": outline})
-    return out, work
-
-
-def test_export_produces_self_contained_doc(tmp_path):
-    out, work = _export_work(tmp_path)
+def test_export_produces_self_contained_doc(tmp_path, export_work):
+    out, work = export_work(tmp_path)
     assert sb_mod.export_index(work) == 0
     doc = load_json(out / "video_index.json")
     assert doc["schema_version"] and doc["video"]["platform"] == "youtube"
@@ -248,23 +198,23 @@ def test_export_produces_self_contained_doc(tmp_path):
     assert (out / doc["outline"][0]["children"][0]["media"][0]["path"]).exists()
 
 
-def test_export_granularity_mapping(tmp_path):
+def test_export_granularity_mapping(tmp_path, export_work):
     for src, expect in [("asr:mimo", "chunk-45s"), ("asr:qwen", "chunk-45s"),
                         ("asr:funasr", "sentence"), ("asr:groq", "segment")]:
-        out, work = _export_work(tmp_path / src.replace(":", "_"), tr_source=src)
+        out, work = export_work(tmp_path / src.replace(":", "_"), tr_source=src)
         assert sb_mod.export_index(work) == 0
         assert load_json(out / "video_index.json")["transcript"]["timestamp_granularity"] == expect
 
 
-def test_export_blocks_on_bad_quote(tmp_path, capsys):
-    out, work = _export_work(tmp_path, quote="根本没说过的话")
+def test_export_blocks_on_bad_quote(tmp_path, capsys, export_work):
+    out, work = export_work(tmp_path, quote="根本没说过的话")
     assert sb_mod.export_index(work) == 5
     assert not (out / "video_index.json").exists()             # 校验不过不产出
     assert "quote" in capsys.readouterr().out
 
 
-def test_export_blocks_on_missing_frame(tmp_path):
-    out, work = _export_work(tmp_path)
+def test_export_blocks_on_missing_frame(tmp_path, export_work):
+    out, work = export_work(tmp_path)
     sb = load_json(wp(work, "storyboard"))
     sb["outline"][0]["media"][0]["proxy_path"] = str(work / "frames_proxy" / "nope.jpg")
     save_json(wp(work, "storyboard"), sb)
@@ -272,43 +222,46 @@ def test_export_blocks_on_missing_frame(tmp_path):
     assert not (out / "video_index.json").exists()
 
 
-def test_export_badge_template_contract(tmp_path):
-    out, work = _export_work(tmp_path)
+def test_export_badge_template_contract(tmp_path, export_work):
+    out, work = export_work(tmp_path)
     meta = load_json(wp(work, "meta"))
     meta["source"]["badge_url_template"] = "https://youtu.be/x"        # 缺 {t} 占位
     save_json(wp(work, "meta"), meta)
     assert sb_mod.export_index(work) == 5
-    out2, work2 = _export_work(tmp_path / "local", platform="local")
+    out2, work2 = export_work(tmp_path / "local", platform="local")
     assert sb_mod.export_index(work2) == 0
     d = load_json(out2 / "video_index.json")
     assert d["video"]["badge_url_template"] is None and d["video"]["platform"] == "local"
     assert d["video"]["source_url"] == "/abs/v.mp4"            # 本地:源路径即高清自取入口
 
 
-def test_export_skips_when_fresh_and_forces(tmp_path, capsys):
-    out, work = _export_work(tmp_path)
+def test_export_skips_when_fresh_and_forces(tmp_path, capsys, export_work):
+    out, work = export_work(tmp_path)
     assert sb_mod.export_index(work) == 0
     capsys.readouterr()
     assert sb_mod.export_index(work) == 0
     assert "跳过" in capsys.readouterr().out                   # 续跑:新于上游即跳过
+    before = (out / "video_index.json").read_bytes()
     assert sb_mod.export_index(work, force=True) == 0
     assert "跳过" not in capsys.readouterr().out
+    assert (out / "video_index.json").read_bytes() == before   # 幂等:重复导出产物一致
 
 
-def test_export_defaults_dedup_fields_when_missing(tmp_path):
-    out, work = _export_work(tmp_path)
+def test_export_defaults_dedup_fields_when_missing(tmp_path, capsys, export_work):
+    out, work = export_work(tmp_path)
     sb = load_json(wp(work, "storyboard"))
     for k in ("dedup_group", "dedup_primary"):
         sb["outline"][0]["media"][0].pop(k)
     save_json(wp(work, "storyboard"), sb)
     assert sb_mod.export_index(work) == 0                      # 未跑 dedup 的旧制品可导
+    assert "无 dedup 标注" in capsys.readouterr().out          # 但不静默:stdout 提示补了默认值
     m = load_json(out / "video_index.json")["outline"][0]["media"][0]
     assert m["dedup_group"] is None and m["dedup_primary"] is True
 
 
-def test_export_output_validates_against_json_schema(tmp_path):
+def test_export_output_validates_against_json_schema(tmp_path, export_work):
     jsonschema = pytest.importorskip("jsonschema")             # 仅 dev 依赖,运行期零 pip 不破
-    out, work = _export_work(tmp_path)
+    out, work = export_work(tmp_path)
     assert sb_mod.export_index(work) == 0
     schema = load_json(Path(__file__).resolve().parent.parent / "schemas" / "video_index.schema.json")
     doc = load_json(out / "video_index.json")

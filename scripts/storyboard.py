@@ -168,7 +168,7 @@ def _claim_copy(src, name: str, copies: dict, errors: list, nid: str):
     return rel
 
 
-def _export_nodes(nodes, copies: dict, errors: list) -> list:
+def _export_nodes(nodes, copies: dict, errors: list, stats: dict) -> list:
     """递归把内部大纲节点归一化为导出形态:内部字段(proxy_path/finalized/on_page)不外泄。"""
     out_nodes = []
     for nd in nodes or []:
@@ -178,6 +178,8 @@ def _export_nodes(nodes, copies: dict, errors: list) -> list:
             if m.get("type") == "frame":
                 rel = _claim_copy(m.get("proxy_path"), f"{nid}_{(m.get('t') or 0):.1f}.jpg",
                                   copies, errors, nid)
+                if "dedup_primary" not in m:
+                    stats["dedup_defaulted"] = stats.get("dedup_defaulted", 0) + 1
                 media_out.append({"type": "frame", "path": rel, "t": m.get("t"),
                                   "resolution": PROXY_RESOLUTION,
                                   "score": m.get("score"), "reason": m.get("reason"),
@@ -194,7 +196,7 @@ def _export_nodes(nodes, copies: dict, errors: list) -> list:
                           "t_start": nd.get("t_start"), "t_end": nd.get("t_end"),
                           "evidence": nd.get("evidence") or [],
                           "media": media_out,
-                          "children": _export_nodes(nd.get("children"), copies, errors)})
+                          "children": _export_nodes(nd.get("children"), copies, errors, stats)})
     return out_nodes
 
 
@@ -304,13 +306,14 @@ def export_index(work: Path | str, force: bool = False) -> int:
     sb, transcript, meta = (load_json(p) for p in ups)
     copies: dict[str, str] = {}
     errors: list[str] = []
+    stats: dict[str, int] = {}
     doc = {"schema_version": SCHEMA_VERSION,
            "generator": {"skill": "video2slides", "spec": "v0.5"},
            "video": _export_video_block(sb.get("video"), meta),
            "transcript": {"source": transcript.get("source") or "",
                           "timestamp_granularity": _granularity(transcript.get("source") or ""),
                           "segments": transcript.get("segments") or []},
-           "outline": _export_nodes(sb.get("outline"), copies, errors)}
+           "outline": _export_nodes(sb.get("outline"), copies, errors, stats)}
     errors += validate_index(doc)
     if errors:
         emit("export: 契约校验不通过,不产出文档(宁缺毋滥)", *(f"  {e}" for e in errors))
@@ -319,6 +322,9 @@ def export_index(work: Path | str, force: bool = False) -> int:
     for src, rel in copies.items():
         shutil.copy2(src, out_dir / rel)
     save_json(doc_p, doc)
+    if stats.get("dedup_defaulted"):
+        emit(f"提示: {stats['dedup_defaulted']} 条 media 无 dedup 标注,按默认值导出"
+             "(group=null/primary=true)——建议先跑 storyboard.py dedup 再导出")
     emit(f"video_index: {doc_p}({len(copies)} 帧资产,schema {SCHEMA_VERSION})")
     return 0
 

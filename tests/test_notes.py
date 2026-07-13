@@ -6,21 +6,26 @@ fixture 刻意由 export 产物构造并删除 .work/ —— 「只读导出文�
 import re
 import shutil
 
+import pytest
+
 import notes as notes_mod
 import storyboard as sb_mod
 from common import load_json, save_json
-from test_storyboard import _export_work
 
 
-def _doc_fixture(base, **kw):
-    out, work = _export_work(base, **kw)
-    assert sb_mod.export_index(work) == 0
-    shutil.rmtree(work)                                 # 无 .work 环境:渲染器只能靠文档活着
-    return out
+@pytest.fixture
+def doc_fixture(export_work):
+    """export 产物构造 + 删除 .work/ ——「只读文档活着」的验收环境(共享工厂见 conftest)。"""
+    def _make(base, **kw):
+        out, work = export_work(base, **kw)
+        assert sb_mod.export_index(work) == 0
+        shutil.rmtree(work)                             # 无 .work 环境:渲染器只能靠文档活着
+        return out
+    return _make
 
 
-def test_notes_renders_from_doc_only(tmp_path):
-    out = _doc_fixture(tmp_path)
+def test_notes_renders_from_doc_only(tmp_path, doc_fixture):
+    out = doc_fixture(tmp_path)
     assert notes_mod.render_notes(out / "video_index.json", depth=2) == 0
     md = (out / "notes.md").read_text(encoding="utf-8")
     assert "# 测试片" in md
@@ -32,23 +37,23 @@ def test_notes_renders_from_doc_only(tmp_path):
         assert (out / p).exists()
 
 
-def test_notes_depth_controls_levels(tmp_path):
-    out = _doc_fixture(tmp_path)
+def test_notes_depth_controls_levels(tmp_path, doc_fixture):
+    out = doc_fixture(tmp_path)
     assert notes_mod.render_notes(out / "video_index.json", depth=1) == 0
     md = (out / "notes.md").read_text(encoding="utf-8")
     assert "开场" in md and "细节" not in md            # L2 被 depth=1 折叠
 
 
-def test_notes_local_platform_degrades_timestamps(tmp_path):
-    out = _doc_fixture(tmp_path, platform="local")
+def test_notes_local_platform_degrades_timestamps(tmp_path, doc_fixture):
+    out = doc_fixture(tmp_path, platform="local")
     assert notes_mod.render_notes(out / "video_index.json", depth=2) == 0
     md = (out / "notes.md").read_text(encoding="utf-8")
     assert "](http" not in md                           # 无跳转 URL
     assert "00:03" in md                                # 时间戳退化为 mm:ss 纯文本
 
 
-def test_notes_fails_fast_on_missing_contract_field(tmp_path, capsys):
-    out = _doc_fixture(tmp_path)
+def test_notes_fails_fast_on_missing_contract_field(tmp_path, capsys, doc_fixture):
+    out = doc_fixture(tmp_path)
     doc = load_json(out / "video_index.json")
     doc.pop("transcript")
     save_json(out / "video_index.json", doc)
@@ -57,15 +62,15 @@ def test_notes_fails_fast_on_missing_contract_field(tmp_path, capsys):
     assert "transcript" in capsys.readouterr().out      # 指明缺失项
 
 
-def test_notes_fails_on_missing_frame_asset(tmp_path, capsys):
-    out = _doc_fixture(tmp_path)
+def test_notes_fails_on_missing_frame_asset(tmp_path, capsys, doc_fixture):
+    out = doc_fixture(tmp_path)
     (out / "frames" / "1_3.0.jpg").unlink()
     assert notes_mod.render_notes(out / "video_index.json", depth=2) == 5
     assert "1_3.0.jpg" in capsys.readouterr().out
 
 
-def test_notes_keeps_dedup_annotation_visible(tmp_path):
-    out = _doc_fixture(tmp_path)
+def test_notes_keeps_dedup_annotation_visible(tmp_path, doc_fixture):
+    out = doc_fixture(tmp_path)
     doc = load_json(out / "video_index.json")
     doc["outline"][0]["media"][0].update(dedup_group="g1", dedup_primary=False)
     doc["outline"][0]["children"][0]["media"][0].update(dedup_group="g1", dedup_primary=True)

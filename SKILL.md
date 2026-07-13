@@ -104,7 +104,7 @@ Purpose 由轴 B 推断、Content 恒为 ready、Density 默认 high-density/rea
 ### 8. 渲染(调 frontend-slides skill)
 读 frontend-slides 的 SKILL.md 并遵循其全部不变量(1920×1080 fixed stage、零依赖)。跳过其 Phase 1/2 提问:
 - 风格 = 轴 B 自动映射(均为 STYLE_PRESETS.md 内已验证存在的预设名):课程/教程→Swiss Modern;演讲/分享→Bold Signal;访谈/播客→Paper & Ink;评测/对比→Electric Studio;资讯/解读→Notebook Tabs;会议记录→Paper & Ink;vlog/生活→Split Pastel;直播实录/秀场→Split Pastel;纪录片→Vintage Editorial
-- 版式需求:每页含标题 + storyboard 该节点 media(用 `final_path`)+ **时间戳角标**(mm:ss,`<a href>` 用 `meta.source.badge_url_template` 填 t 的整数秒)+ summary 要点文字;`quality_limited` 的帧右下角标「代理画质」
+- 版式需求:每页含标题 + storyboard 该节点 media(用 `final_path`)+ **时间戳角标**(mm:ss,`<a href>` 用 video_index.json 的 `video.badge_url_template` 填 t 的整数秒——跳转模板以导出文档为语义真相)+ summary 要点文字;`quality_limited` 的帧右下角标「代理画质」
 - **帧的版面权重按 visual_form 定**(2026-07-11 用户 review 反馈落地):
   - screen-recording / 文档录屏 / slide-driven / whiteboard:**帧是信息主体**——截图里的文字必须肉眼可读,帧卡片占页面主导面积(≥60%,全宽大图+紧凑文字条,或图 70% 文 30%),UI 截图用 contain/原比例完整呈现,禁止 cover 裁切
   - cinematic / 游记 / 实拍:帧承载氛围,图文对半或图稍大均可,cover 裁切可接受
