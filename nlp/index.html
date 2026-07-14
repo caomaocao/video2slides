@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>尚硅谷 NLP 课程概述 · P02</title>
+<!-- ============================================================
+     video2slides deck · Swiss Modern(课程/教程 → 自动映射)
+     源视频:https://www.bilibili.com/video/BV1k44LzPEhU?p=2
+     由 video_index.json 渲染;时间戳角标跳回 B 站原片
+     ============================================================ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ===========================================
+   FIXED 16:9 STAGE: MANDATORY BASE STYLES
+   Include this ENTIRE file in every presentation.
+   Slides are authored at 1920×1080 and scaled as a whole.
+   =========================================== */
+
+/* 1. Lock the browser viewport */
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+/* 2. Full-window deck viewport */
+.deck-viewport {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+/* 3. Fixed 16:9 design canvas.
+   JavaScript sets transform: translate(...) scale(...). */
+.deck-stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    transform-origin: 0 0;
+    background: var(--slide-bg, #fff);
+}
+
+/* 4. Slides stack inside the fixed stage.
+   Content must be laid out at 1920×1080, not reflowed per device. */
+.slide {
+    position: absolute;
+    inset: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    display: block;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    background: var(--slide-bg, #fff);
+}
+
+.slide.active,
+.slide.visible {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+/* 5. Keep media inside authored slide bounds */
+img,
+video,
+canvas,
+svg {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* 6. Presentation chrome stays outside the slide design system */
+.deck-controls {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+
+/* 7. Print one fixed-size slide per page */
+@media print {
+    html,
+    body {
+        width: 1920px;
+        height: auto;
+        overflow: visible;
+        background: #fff;
+    }
+
+    .deck-viewport {
+        position: static;
+        overflow: visible;
+        background: #fff;
+    }
+
+    .deck-stage {
+        position: static;
+        width: auto;
+        height: auto;
+        transform: none !important;
+        background: none;
+    }
+
+    .slide {
+        position: relative;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        width: 1920px;
+        height: 1080px;
+        break-after: page;
+        page-break-after: always;
+    }
+
+    .slide:last-child {
+        break-after: auto;
+        page-break-after: auto;
+    }
+
+    .deck-controls {
+        display: none !important;
+    }
+}
+
+/* 8. Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+    }
+}
+
+/* === SWISS MODERN DESIGN SYSTEM ===
+   纯白/纯黑 + 红 #ff3300;Archivo 标题 + Nunito 正文;
+   可见网格线、非对称版式、几何色块。
+   注意:所有版式都挂在 .slide 的子容器上,绝不在 .slide
+   派生类上覆盖 position / display(避免破坏切页机制)。 */
+:root {
+    --ink: #0a0a0a;
+    --paper: #ffffff;
+    --red: #ff3300;
+    --grey: #6b6b6b;
+    --hairline: #d8d8d8;
+    --stage-bg: #111;
+    --slide-bg: #ffffff;
+}
+
+.slide * { box-sizing: border-box; }
+
+/* --- 页面内部骨架:统一的可见网格 --- */
+.sheet {
+    position: absolute;
+    inset: 0;
+    padding: 72px 96px 64px;
+    font-family: 'Nunito', sans-serif;
+    color: var(--ink);
+}
+/* 纵向网格参考线(Swiss 视觉签名) */
+.sheet::before {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 96px;
+    width: 1px;
+    background: var(--hairline);
+}
+.sheet::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    right: 96px;
+    width: 1px;
+    background: var(--hairline);
+}
+
+/* --- 页眉:章 eyebrow + 时间戳角标 --- */
+.head {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 32px;
+    z-index: 2;
+}
+.eyebrow {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    letter-spacing: 0.14em;
+    color: var(--grey);
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.eyebrow b { color: var(--red); font-weight: 900; margin-right: 14px; }
+
+/* 时间戳角标:跳回 B 站原片 */
+.tbadge {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800;
+    font-size: 26px;
+    color: var(--paper);
+    background: var(--ink);
+    text-decoration: none;
+    padding: 8px 20px 10px;
+    white-space: nowrap;
+    transition: background .18s ease;
+}
+.tbadge::before { content: '▶'; color: var(--red); margin-right: 12px; font-size: 20px; }
+.tbadge:hover { background: var(--red); }
+.tbadge.small { font-size: 19px; padding: 4px 12px 6px; }
+
+.slide-title {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 900;
+    font-size: 64px;
+    line-height: 1.08;
+    margin: 26px 0 0;
+    letter-spacing: -0.01em;
+    position: relative;
+    z-index: 2;
+}
+.slide-title .redline { color: var(--red); }
+
+/* --- 录屏帧为信息主体:图 ~70% / 文 30% --- */
+.body-media {
+    position: relative;
+    display: flex;
+    gap: 48px;
+    margin-top: 40px;
+    height: 780px;
+    z-index: 2;
+}
+.frame-card {
+    flex: 0 0 1216px;
+    display: flex;
+    flex-direction: column;
+    border: 2px solid var(--ink);
+    background: #fafafa;
+}
+.frame-card .imgbox {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #f2f2f2;
+}
+.frame-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;   /* 录屏截图:完整呈现,禁止 cover 裁切 */
+    display: block;
+}
+.frame-card .capbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-top: 2px solid var(--ink);
+    padding: 10px 18px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--grey);
+    background: var(--paper);
+}
+.side {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    min-width: 0;
+}
+.side .summary {
+    font-size: 27px;
+    line-height: 1.62;
+    font-weight: 600;
+}
+.quote {
+    border-left: 6px solid var(--red);
+    padding: 6px 0 6px 22px;
+    font-size: 22px;
+    line-height: 1.5;
+    color: var(--grey);
+    font-weight: 600;
+}
+.quote .q { display: block; margin-bottom: 8px; }
+.quote a {
+    color: var(--ink);
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800;
+    font-size: 19px;
+    text-decoration: none;
+    border-bottom: 2px solid var(--red);
+}
+.quote a:hover { color: var(--red); }
+
+/* --- 纯文字页(同组画面已在他页呈现,视图级唯一性) --- */
+.body-text {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    margin-top: 48px;
+    height: 760px;
+    z-index: 2;
+}
+.statement {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800;
+    font-size: 46px;
+    line-height: 1.3;
+    max-width: 1500px;
+}
+.statement em { font-style: normal; color: var(--red); }
+.pt-grid {
+    display: flex;
+    gap: 40px;
+    margin-top: 64px;
+}
+.pt {
+    flex: 1;
+    border-top: 8px solid var(--ink);
+    padding-top: 24px;
+}
+.pt.acc { border-top-color: var(--red); }
+.pt h3 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800;
+    font-size: 30px;
+    margin: 0 0 14px;
+}
+.pt p {
+    font-size: 23px;
+    line-height: 1.6;
+    color: var(--grey);
+    font-weight: 600;
+    margin: 0;
+}
+.flow {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-top: 70px;
+}
+.flow .step {
+    flex: 1;
+    border: 3px solid var(--ink);
+    padding: 30px 34px;
+    position: relative;
+}
+.flow .step.acc { background: var(--ink); color: var(--paper); }
+.flow .step.acc h3 { color: var(--paper); }
+.flow .step h3 {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 900;
+    font-size: 32px;
+    margin: 0 0 12px;
+}
+.flow .step p { font-size: 22px; line-height: 1.55; margin: 0; font-weight: 600; color: inherit; }
+.flow .step.acc p { color: #e8e8e8; }
+.flow .arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 900;
+    font-size: 54px;
+    color: var(--red);
+}
+.textfoot { margin-top: auto; display: flex; gap: 28px; align-items: center; }
+.textfoot .note { font-size: 20px; color: var(--grey); font-weight: 600; }
+
+/* --- 页脚 --- */
+.foot {
+    position: absolute;
+    left: 96px;
+    right: 96px;
+    bottom: 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.08em;
+    color: var(--grey);
+    z-index: 3;
+}
+.foot .pageno { color: var(--ink); }
+.foot .pageno b { color: var(--red); }
+
+/* --- 几何装饰 --- */
+.geo {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+}
+.geo.sq { width: 120px; height: 120px; background: var(--red); }
+.geo.ring { width: 180px; height: 180px; border: 14px solid var(--ink); border-radius: 50%; }
+.geo.bar { height: 14px; background: var(--ink); }
+
+/* --- 封面 --- */
+.cover-wrap {
+    position: absolute;
+    inset: 0;
+    padding: 110px 120px;
+    font-family: 'Nunito', sans-serif;
+    color: var(--ink);
+    background:
+        linear-gradient(var(--hairline) 1px, transparent 1px) 0 0 / 100% 216px,
+        linear-gradient(90deg, var(--hairline) 1px, transparent 1px) 0 0 / 240px 100%,
+        var(--paper);
+}
+.cover-eyebrow {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    letter-spacing: 0.22em;
+    color: var(--grey);
+    text-transform: uppercase;
+}
+.cover-title {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 900;
+    font-size: 150px;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    margin: 46px 0 0;
+}
+.cover-title .redline { color: var(--red); }
+.cover-sub {
+    margin-top: 44px;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--grey);
+    max-width: 1100px;
+    line-height: 1.55;
+}
+.cover-meta {
+    position: absolute;
+    left: 120px;
+    bottom: 96px;
+    display: flex;
+    gap: 44px;
+    align-items: center;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 700;
+    font-size: 23px;
+    color: var(--ink);
+}
+.cover-meta .dot { width: 12px; height: 12px; background: var(--red); }
+
+/* --- 进场动画:仅作用于激活页内的 .rv 元素 --- */
+.rv { opacity: 0; transform: translateY(26px); transition: opacity .5s ease, transform .5s ease; }
+.slide.active .rv { opacity: 1; transform: none; }
+.slide.active .rv:nth-child(1), .slide.active [data-rv="1"] { transition-delay: .05s; }
+.slide.active [data-rv="2"] { transition-delay: .15s; }
+.slide.active [data-rv="3"] { transition-delay: .25s; }
+.slide.active [data-rv="4"] { transition-delay: .35s; }
+
+/* --- 底部控制条 --- */
+.deck-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-family: 'Archivo', sans-serif;
+}
+.deck-controls button {
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 15px;
+    border: 2px solid #fff;
+    color: #fff;
+    background: transparent;
+    padding: 6px 14px;
+    cursor: pointer;
+    opacity: .55;
+    transition: opacity .2s;
+}
+.deck-controls button:hover { opacity: 1; }
+.deck-controls .cnt { color: #fff; opacity: .55; font-size: 15px; font-weight: 700; padding: 0 8px; }
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+<div class="deck-stage" id="stage">
+
+<!-- === SLIDE 01 · 封面 === -->
+<section class="slide active">
+  <div class="cover-wrap">
+    <div class="cover-eyebrow rv" data-rv="1">尚硅谷 · 大模型技术之 NLP · P02</div>
+    <h1 class="cover-title rv" data-rv="2">NLP<br>课程<span class="redline">概述</span></h1>
+    <p class="cover-sub rv" data-rv="3">从深度学习收束,经文本表示、RNN/LSTM/GRU、Seq2Seq、Attention 一路铺垫到 Transformer 与预训练模型——一张图看清 NLP 阶段的学习路线。</p>
+    <div class="cover-meta rv" data-rv="4">
+      <span>尚硅谷研究院</span><span class="dot"></span>
+      <span>时长 11:58</span><span class="dot"></span>
+      <a class="tbadge" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=0" target="_blank" rel="noopener">00:00 · 打开原片</a>
+    </div>
+    <div class="geo sq" style="right:120px; top:110px;"></div>
+    <div class="geo ring" style="right:190px; bottom:150px;"></div>
+  </div>
+</section>
+
+<!-- === SLIDE 02 · 1.1 从深度学习进入 NLP 阶段 === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>01</b>NLP 在课程体系中的位置</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=12" target="_blank" rel="noopener">00:12</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2">从深度学习进入 <span class="redline">NLP 阶段</span></h2>
+    <div class="body-media">
+      <figure class="frame-card rv" data-rv="3" style="margin:0;">
+        <div class="imgbox"><img src="assets/final_1.1_12.2.jpg" alt="讲义封面:尚硅谷大模型技术之 NLP,第1章 NLP 导论"></div>
+        <figcaption class="capbar"><span>讲义《尚硅谷大模型技术之 NLP》V1.0.2 · 第 1 章 NLP 导论</span><span>00:12</span></figcaption>
+      </figure>
+      <aside class="side rv" data-rv="4">
+        <p class="summary">深度学习部分刚刚结束,课程正式转入 NLP(自然语言处理)阶段;先交代 NLP 在整个课程体系中的位置。</p>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「需要进入到这个NLP阶段了」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=8" target="_blank" rel="noopener">00:08 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「就是所谓的自然语言处理嘛」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=14" target="_blank" rel="noopener">00:14 ↗</a>
+        </blockquote>
+      </aside>
+    </div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>02</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 03 · 1.2 大模型源自 NLP(纯文字:画面与上页同组 g1) === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>01</b>NLP 在课程体系中的位置</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=24" target="_blank" rel="noopener">00:24</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2">大模型源自 NLP:<span class="redline">LLM</span> 与多模态</h2>
+    <div class="body-text">
+      <p class="statement rv" data-rv="2">「大模型」更多指的是<em>大语言模型</em>——Large Language Model;它正是从传统自然语言处理技术发展而来。</p>
+      <div class="pt-grid rv" data-rv="3">
+        <div class="pt acc">
+          <h3>LLM 是核心</h3>
+          <p>课程核心是后续大模型内容,而大模型多数语境下即大语言模型(LLM)。</p>
+        </div>
+        <div class="pt">
+          <h3>多模态是延伸</h3>
+          <p>如今的大模型也能处理图片、音频、视频——即所谓多模态;但最初处理的是自然语言。</p>
+        </div>
+        <div class="pt">
+          <h3>NLP 是根</h3>
+          <p>大模型由传统 NLP 技术演进而来,学好 NLP 对理解大模型内容必不可少。</p>
+        </div>
+      </div>
+      <div class="textfoot rv" data-rv="4">
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「指的就是大语言模型」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=41" target="_blank" rel="noopener">00:41 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「传统的自然语言处理」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=64" target="_blank" rel="noopener">01:04 ↗</a>
+        </blockquote>
+      </div>
+    </div>
+    <div class="geo sq" style="right:130px; bottom:170px; width:90px; height:90px;"></div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>03</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 04 · 2.1 章节总览 === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>02</b>课程规划与基础章节</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=108" target="_blank" rel="noopener">01:48</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2">章节总览:<span class="redline">导论</span>与环境准备</h2>
+    <div class="body-media">
+      <figure class="frame-card rv" data-rv="3" style="margin:0;">
+        <div class="imgbox"><img src="assets/final_2.1_108.3.jpg" alt="讲义导航窗格展开第1章子目录:定义、常见任务、技术演进历史"></div>
+        <figcaption class="capbar"><span>导航窗格展开:第 1 章 定义 / 常见任务 / 技术演进历史</span><span>01:48</span></figcaption>
+      </figure>
+      <aside class="side rv" data-rv="4">
+        <p class="summary">第 1 章导论包含两小节:NLP 常见任务(它能干啥)与技术演进历史;了解历史有助于理解,内容较简单。第 2 章是课程环境准备。</p>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「一个是NLP常见的任务」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=104" target="_blank" rel="noopener">01:44 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「这个技术的一个演进历史」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=110" target="_blank" rel="noopener">01:50 ↗</a>
+        </blockquote>
+      </aside>
+    </div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>04</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 05 · 2.2 文本表示 === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>02</b>课程规划与基础章节</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=159" target="_blank" rel="noopener">02:39</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2">文本表示:<span class="redline">切词</span>与向量化</h2>
+    <div class="body-media">
+      <figure class="frame-card rv" data-rv="3" style="margin:0;">
+        <div class="imgbox"><img src="assets/final_2.2_159.1.jpg" alt="讲义第3章 文本表示:语料→分词→词汇表示意图,红笔标注 RNN"></div>
+        <figcaption class="capbar"><span>第 3 章 文本表示 · 语料 → 分词 → 词汇表</span><span>02:39</span></figcaption>
+      </figure>
+      <aside class="side rv" data-rv="4">
+        <p class="summary">以之前做过的 RNN 小例子引入:让模型处理文本前要切词、把词转成向量——这一步就是文本表示,即用模型能识别的方式表示文本。</p>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「你要把一个词转成是不是一个一个的向量」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=165" target="_blank" rel="noopener">02:45 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「就是我们所谓的文本表示」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=169" target="_blank" rel="noopener">02:49 ↗</a>
+        </blockquote>
+      </aside>
+    </div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>05</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 06 · 2.3 传统序列模型 === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>02</b>课程规划与基础章节</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=214" target="_blank" rel="noopener">03:34</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2">传统序列模型:<span class="redline">RNN / LSTM / GRU</span></h2>
+    <div class="body-media">
+      <figure class="frame-card rv" data-rv="3" style="margin:0;">
+        <div class="imgbox"><img src="assets/final_2.3_214.0.jpg" alt="讲义第4章 传统序列模型:4.1 RNN 概述,导航栏红框圈出 RNN/LSTM/GRU"></div>
+        <figcaption class="capbar"><span>第 4 章 传统序列模型 · RNN / LSTM / GRU(红框)</span><span>03:34</span></figcaption>
+      </figure>
+      <aside class="side rv" data-rv="4">
+        <p class="summary">系统重讲 RNN 以加深理解;LSTM 是 RNN 的升级版,GRU 又是 LSTM 的升级版——三者本质都带循环结构,统称循环神经网络。</p>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「是RN的一个升级版本」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=224" target="_blank" rel="noopener">03:44 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「他们的统称循环神经网络」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=236" target="_blank" rel="noopener">03:56 ↗</a>
+        </blockquote>
+      </aside>
+    </div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>06</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 07 · 3.1 Seq2Seq === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>03</b>通往 Transformer 的演进路线</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=344" target="_blank" rel="noopener">05:44</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2"><span class="redline">Seq2Seq</span>:序列到序列架构</h2>
+    <div class="body-media">
+      <figure class="frame-card rv" data-rv="3" style="margin:0;">
+        <div class="imgbox"><img src="assets/final_3.1_344.8.jpg" alt="讲义第5章 Seq2Seq 模型页,讲师红笔手绘输入→模型→输出示意"></div>
+        <figcaption class="capbar"><span>第 5 章 Seq2Seq 模型 · 讲师手绘「序列 → 模型 → 序列」</span><span>05:44</span></figcaption>
+      </figure>
+      <aside class="side rv" data-rv="4">
+        <p class="summary">Seq2Seq 即序列到序列:输入一句话、输出一句话,典型场景是翻译(中文进、英文出);它并非新网络,而是基于 RNN/LSTM/GRU 搭建的结构更新。</p>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「最典型的场景就是做什么翻译」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=308" target="_blank" rel="noopener">05:08 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「仅仅是一个就是结构上的更新」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=332" target="_blank" rel="noopener">05:32 ↗</a>
+        </blockquote>
+      </aside>
+    </div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>07</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 08 · 3.2 Attention === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>03</b>通往 Transformer 的演进路线</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=368" target="_blank" rel="noopener">06:08</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2"><span class="redline">Attention</span> 机制:增强 Seq2Seq</h2>
+    <div class="body-media">
+      <figure class="frame-card rv" data-rv="3" style="margin:0;">
+        <div class="imgbox"><img src="assets/final_3.2_368.9.jpg" alt="讲义第6章 Attention 机制 6.1 概述:信息压缩困难、缺乏动态感知"></div>
+        <figcaption class="capbar"><span>第 6 章 Attention 机制 · 传统 Seq2Seq 的两个问题</span><span>06:08</span></figcaption>
+      </figure>
+      <aside class="side rv" data-rv="4">
+        <p class="summary">Attention 为增强 Seq2Seq 架构而生:解决固定上下文向量的信息压缩困难与缺乏动态感知;有了它,翻译等任务效果更好。掌握 Seq2Seq 与 Attention 之后,学 Transformer 会轻而易举。</p>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「是为了增强这个sequence to sequence这种模型架构」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=372" target="_blank" rel="noopener">06:12 ↗</a>
+        </blockquote>
+      </aside>
+    </div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>08</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 09 · 3.3 Transformer(纯文字:画面与上页同组 g2) === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>03</b>通往 Transformer 的演进路线</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=383" target="_blank" rel="noopener">06:23</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2"><span class="redline">Transformer</span>:架构升级,大模型基石</h2>
+    <div class="body-text">
+      <p class="statement rv" data-rv="2">Transformer 用全新架构实现 Seq2Seq 的功能——<em>功能相同,效率更高、效果更好</em>;后续大模型阶段的一切知识点都建立在它之上。</p>
+      <div class="flow rv" data-rv="3">
+        <div class="step">
+          <h3>Seq2Seq</h3>
+          <p>基于 RNN/LSTM/GRU 的序列到序列架构</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step">
+          <h3>+ Attention</h3>
+          <p>动态感知上下文,增强翻译等任务效果</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step acc">
+          <h3>Transformer</h3>
+          <p>架构彻底更新:计算效率更高,效果更好,大模型的共同基座</p>
+        </div>
+      </div>
+      <div class="textfoot rv" data-rv="4">
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「做了一个架构的一个升级」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=401" target="_blank" rel="noopener">06:41 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「transformer非常非常的重要」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=437" target="_blank" rel="noopener">07:17 ↗</a>
+        </blockquote>
+      </div>
+    </div>
+    <div class="geo ring" style="right:150px; top:210px; width:120px; height:120px; border-width:10px;"></div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>09</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 10 · 3.4 旧技术淘汰但仍要学 === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>03</b>通往 Transformer 的演进路线</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=469" target="_blank" rel="noopener">07:49</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2">旧技术渐被淘汰,<span class="redline">但仍要学</span></h2>
+    <div class="body-media">
+      <figure class="frame-card rv" data-rv="3" style="margin:0;">
+        <div class="imgbox"><img src="assets/final_3.4_469.2.jpg" alt="讲义第7章 Transformer 模型概述,导航栏红框圈出被其取代的前置章节"></div>
+        <figcaption class="capbar"><span>第 7 章 Transformer · 红框圈出被升级取代的前置模型</span><span>07:49</span></figcaption>
+      </figure>
+      <aside class="side rv" data-rv="4">
+        <p class="summary">有了 Transformer,传统模型会逐渐被淘汰、用得越来越少;但不学前置直接上 Transformer 会太抽象——且现阶段仍有使用场景,面试也可能问到,该学还是得学。</p>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「将来就会逐渐的被淘汰」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=454" target="_blank" rel="noopener">07:34 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「该学还是得学」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=493" target="_blank" rel="noopener">08:13 ↗</a>
+        </blockquote>
+      </aside>
+    </div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>10</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 11 · 4.1 预训练 === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>04</b>预训练模型:承上启下</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=535" target="_blank" rel="noopener">08:55</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2"><span class="redline">预训练</span>:海量语料学通用语言规律</h2>
+    <div class="body-media">
+      <figure class="frame-card rv" data-rv="3" style="margin:0;">
+        <div class="imgbox"><img src="assets/final_4.1_535.8.jpg" alt="讲义第8章 预训练模型概述:预训练阶段与微调阶段要点"></div>
+        <figcaption class="capbar"><span>第 8 章 预训练模型 · “预训练 + 微调”建模范式</span><span>08:55</span></figcaption>
+      </figure>
+      <aside class="side rv" data-rv="4">
+        <p class="summary">与以往「有任务就找数据集从头训练」不同,预训练让参数量很大的模型先在大量原始语料上训练;训练完具备通用知识——理解语言结构、学习语言规律。</p>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「基于大量的原始的语料」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=540" target="_blank" rel="noopener">09:00 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「他会去学习语言的规律」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=571" target="_blank" rel="noopener">09:31 ↗</a>
+        </blockquote>
+      </aside>
+    </div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>11</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 12 · 4.2 迁移与微调(纯文字:画面与上页同组 g3) === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>04</b>预训练模型:承上启下</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=574" target="_blank" rel="noopener">09:34</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2">迁移与<span class="redline">微调</span>:适应下游任务</h2>
+    <div class="body-text">
+      <p class="statement rv" data-rv="2">预训练模型只有通用知识;在其参数基础上,用<em>标注好的数据</em>进一步训练——这就是微调,也是迁移学习范式。</p>
+      <div class="flow rv" data-rv="3">
+        <div class="step">
+          <h3>预训练模型</h3>
+          <p>通用语言知识:懂结构、懂规律</p>
+        </div>
+        <div class="arrow">+</div>
+        <div class="step">
+          <h3>标注数据</h3>
+          <p>如「邮件 → 是否垃圾」的标签对</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step acc">
+          <h3>微调</h3>
+          <p>适配下游具体任务,例:垃圾邮件识别(文本二分类)</p>
+        </div>
+      </div>
+      <div class="textfoot rv" data-rv="4">
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「我们一般叫做微调」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=639" target="_blank" rel="noopener">10:39 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「这是一个迁移学习的范式」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=648" target="_blank" rel="noopener">10:48 ↗</a>
+        </blockquote>
+      </div>
+    </div>
+    <div class="geo sq" style="right:140px; top:200px; width:80px; height:80px;"></div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>12</b> / 13</span></div>
+  </div>
+</section>
+
+<!-- === SLIDE 13 · 4.3 范式与课程收束(纯文字:画面与 4.1 同组 g3) === -->
+<section class="slide">
+  <div class="sheet">
+    <div class="head">
+      <span class="eyebrow rv" data-rv="1"><b>04</b>预训练模型:承上启下</span>
+      <a class="tbadge rv" data-rv="1" href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=657" target="_blank" rel="noopener">10:57</a>
+    </div>
+    <h2 class="slide-title rv" data-rv="2">预训练+微调范式,<span class="redline">重点是 Transformer</span></h2>
+    <div class="body-text">
+      <p class="statement rv" data-rv="2">Transformer 之后兴起「预训练 + 微调」范式,涌现 GPT、BERT 等预训练模型;如今的 <em>DeepSeek、千问、GPT</em> 都属此范畴——NLP 阶段就此为大模型课程承上启下。</p>
+      <div class="pt-grid rv" data-rv="3">
+        <div class="pt">
+          <h3>范式确立</h3>
+          <p>预训练 + 微调成为热点,GPT、BERT 等在这一阶段大量涌现。</p>
+        </div>
+        <div class="pt">
+          <h3>今日大模型</h3>
+          <p>DeepSeek、千问、GPT 等常见大模型,本质都属预训练模型范畴。</p>
+        </div>
+        <div class="pt acc">
+          <h3>课程重点</h3>
+          <p>整个 NLP 阶段的重中之重是 Transformer——前置内容也该认真学。</p>
+        </div>
+      </div>
+      <div class="textfoot rv" data-rv="4">
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「就是预训练加微调的这么一个范式」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=661" target="_blank" rel="noopener">11:01 ↗</a>
+        </blockquote>
+        <blockquote class="quote" style="margin:0;">
+          <span class="q">「肯定是transformer」</span>
+          <a href="https://www.bilibili.com/video/BV1k44LzPEhU?p=2&t=709" target="_blank" rel="noopener">11:49 ↗</a>
+        </blockquote>
+      </div>
+    </div>
+    <div class="geo bar" style="left:96px; right:96px; bottom:120px;"></div>
+    <div class="foot"><span>NLP 课程概述 · 尚硅谷</span><span class="pageno"><b>13</b> / 13</span></div>
+  </div>
+</section>
+
+</div>
+</div>
+
+<!-- 底部控制条(舞台外 chrome) -->
+<div class="deck-controls">
+  <button id="prevBtn" aria-label="上一页">←</button>
+  <span class="cnt" id="cnt">1 / 13</span>
+  <button id="nextBtn" aria-label="下一页">→</button>
+</div>
+
+<script>
+/* === 舞台等比缩放 === */
+(function () {
+  var stage = document.getElementById('stage');
+  function fit() {
+    var w = window.innerWidth, h = window.innerHeight;
+    var s = Math.min(w / 1920, h / 1080);
+    var x = (w - 1920 * s) / 2, y = (h - 1080 * s) / 2;
+    stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+})();
+
+/* === 翻页控制:方向键 / 空格 / 按钮,hash 同步 === */
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var cnt = document.getElementById('cnt');
+  var cur = 0;
+  function show(i) {
+    i = Math.max(0, Math.min(slides.length - 1, i));
+    slides[cur].classList.remove('active');
+    cur = i;
+    slides[cur].classList.add('active');
+    cnt.textContent = (cur + 1) + ' / ' + slides.length;
+    if (history.replaceState) history.replaceState(null, '', '#' + (cur + 1));
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(cur + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(cur - 1); }
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+  document.getElementById('prevBtn').addEventListener('click', function () { show(cur - 1); });
+  document.getElementById('nextBtn').addEventListener('click', function () { show(cur + 1); });
+  var m = location.hash.match(/^#(\d+)$/);
+  if (m) show(parseInt(m[1], 10) - 1);
+})();
+</script>
+</body>
+</html>

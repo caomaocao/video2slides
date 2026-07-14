@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token 到底是什么？—— 揭秘大模型背后的“文字压缩术”</title>
+<!-- video2slides deck · Swiss Modern · 源视频: https://www.youtube.com/watch?v=QNiaoD5RxPA -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ===========================================
+   FIXED 16:9 STAGE: MANDATORY BASE STYLES
+   Include this ENTIRE file in every presentation.
+   Slides are authored at 1920×1080 and scaled as a whole.
+   =========================================== */
+
+/* 1. Lock the browser viewport */
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+/* 2. Full-window deck viewport */
+.deck-viewport {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+/* 3. Fixed 16:9 design canvas.
+   JavaScript sets transform: translate(...) scale(...). */
+.deck-stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    transform-origin: 0 0;
+    background: var(--slide-bg, #fff);
+}
+
+/* 4. Slides stack inside the fixed stage.
+   Content must be laid out at 1920×1080, not reflowed per device. */
+.slide {
+    position: absolute;
+    inset: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    display: block;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    background: var(--slide-bg, #fff);
+}
+
+.slide.active,
+.slide.visible {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+/* 5. Keep media inside authored slide bounds */
+img,
+video,
+canvas,
+svg {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* 6. Presentation chrome stays outside the slide design system */
+.deck-controls {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+
+/* 7. Print one fixed-size slide per page */
+@media print {
+    html,
+    body {
+        width: 1920px;
+        height: auto;
+        overflow: visible;
+        background: #fff;
+    }
+
+    .deck-viewport {
+        position: static;
+        overflow: visible;
+        background: #fff;
+    }
+
+    .deck-stage {
+        position: static;
+        width: auto;
+        height: auto;
+        transform: none !important;
+        background: none;
+    }
+
+    .slide {
+        position: relative;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        width: 1920px;
+        height: 1080px;
+        break-after: page;
+        page-break-after: always;
+    }
+
+    .slide:last-child {
+        break-after: auto;
+        page-break-after: auto;
+    }
+
+    .deck-controls {
+        display: none !important;
+    }
+}
+
+/* 8. Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+    }
+}
+
+/* === SWISS MODERN 设计系统 ===
+   Archivo 800 标题 + Nunito 400 正文;纯白/纯黑/红 #ff3300;
+   可见网格、不对称版式、几何形状。 */
+:root {
+    --stage-bg: #111;
+    --slide-bg: #ffffff;
+    --ink: #0a0a0a;
+    --red: #ff3300;
+    --grid: rgba(10, 10, 10, .07);
+    --muted: #6b6b6b;
+}
+
+.slide {
+    font-family: 'Nunito', sans-serif;
+    color: var(--ink);
+    background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 96px 96px;
+}
+
+.slide h1, .slide h2, .slide h3, .kicker, .idx {
+    font-family: 'Archivo', sans-serif;
+    letter-spacing: -.01em;
+}
+
+/* === 入场动画(每页统一一次编排的 stagger) === */
+.reveal { opacity: 0; transform: translateY(26px); }
+.slide.active .reveal {
+    animation: rise .7s cubic-bezier(.2, .7, .2, 1) forwards;
+}
+.slide.active .reveal:nth-child(2), .slide.active .r2 { animation-delay: .12s; }
+.slide.active .r3 { animation-delay: .24s; }
+.slide.active .r4 { animation-delay: .36s; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+/* === 公共部件 === */
+.kicker {
+    font-weight: 700;
+    font-size: 26px;
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--red);
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    color: #fff;
+    background: var(--ink);
+    padding: 10px 22px;
+    text-decoration: none;
+}
+.badge::before { content: '▶'; color: var(--red); font-size: 20px; }
+.badge:hover { background: var(--red); }
+
+.qmark {
+    border-left: 10px solid var(--red);
+    padding: 6px 0 6px 26px;
+    font-size: 30px;
+    line-height: 1.5;
+    font-weight: 600;
+}
+.qmark small { display: block; color: var(--muted); font-size: 22px; margin-top: 6px; }
+
+/* 帧卡片:信息主体,contain 完整呈现,禁止 cover 裁切 */
+.framecard {
+    position: relative;
+    background: var(--ink);
+    border: 3px solid var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.framecard img { width: 100%; height: 100%; object-fit: contain; }
+.proxytag {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    background: var(--ink);
+    color: #fff;
+    font-size: 20px;
+    padding: 6px 14px;
+    opacity: .85;
+}
+
+/* === 版式:内容页(图 65% / 文 35% 不对称网格) === */
+.page {
+    position: absolute;
+    inset: 0;
+    padding: 90px 100px 120px;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 1160px 1fr;
+    gap: 60px;
+}
+.page .framecard { width: 1160px; height: 700px; align-self: center; }
+.page .side { display: flex; flex-direction: column; gap: 30px; padding-top: 30px; }
+.page h2 { font-size: 62px; font-weight: 800; line-height: 1.12; margin: 0; }
+.page .summary { font-size: 30px; line-height: 1.65; margin: 0; }
+.page .quotes { margin-top: auto; display: flex; flex-direction: column; gap: 24px; }
+
+/* === 版式:章分隔页 === */
+.section-inner {
+    position: absolute;
+    inset: 0;
+    padding: 140px 130px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+.idx {
+    font-size: 300px;
+    font-weight: 900;
+    line-height: .9;
+    color: transparent;
+    -webkit-text-stroke: 4px var(--ink);
+}
+.section-inner h2 { font-size: 96px; font-weight: 900; margin: 30px 0 0; max-width: 1400px; }
+.section-inner .summary { font-size: 34px; line-height: 1.6; max-width: 1250px; margin-top: 36px; }
+.section-inner .badge { margin-top: auto; align-self: flex-start; }
+.geo {
+    position: absolute;
+    right: 130px;
+    top: 140px;
+    width: 220px;
+    height: 220px;
+    background: var(--red);
+}
+.geo.circle { border-radius: 50%; }
+.geo.hollow { background: none; border: 14px solid var(--red); }
+.geo.tri { background: none; width: 0; height: 0; border-left: 120px solid transparent; border-right: 120px solid transparent; border-bottom: 210px solid var(--red); }
+
+/* === 版式:纯文字页(视图级唯一性回退) === */
+.textpage {
+    position: absolute;
+    inset: 0;
+    padding: 110px 130px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+}
+.textpage h2 { font-size: 76px; font-weight: 900; margin: 0; max-width: 1500px; }
+.steps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 34px 60px; }
+.step { border-top: 6px solid var(--ink); padding-top: 20px; }
+.step .no { font-family: 'Archivo', sans-serif; font-weight: 800; color: var(--red); font-size: 30px; }
+.step p { font-size: 30px; line-height: 1.55; margin: 8px 0 0; }
+.bignum-row { display: flex; gap: 70px; align-items: stretch; }
+.bignum { flex: 1; border: 5px solid var(--ink); padding: 44px 40px; }
+.bignum .n { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 96px; line-height: 1; color: var(--red); }
+.bignum p { font-size: 30px; margin: 18px 0 0; line-height: 1.5; }
+
+/* === 版式:标题页 / 结尾页 === */
+.titlepage {
+    position: absolute;
+    inset: 0;
+    padding: 150px 130px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+.titlepage h1 { font-size: 120px; font-weight: 900; line-height: 1.05; margin: 40px 0 0; max-width: 1550px; }
+.titlepage .sub { font-size: 40px; margin-top: 44px; color: var(--muted); }
+.titlepage .meta { margin-top: auto; display: flex; gap: 28px; align-items: center; font-size: 28px; }
+.redbar { position: absolute; left: 0; top: 0; width: 26px; height: 1080px; background: var(--red); }
+
+.pageno {
+    position: absolute;
+    right: 44px;
+    bottom: 34px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    color: var(--muted);
+    z-index: 5;
+}
+
+/* 导航条(舞台之外的 chrome) */
+.deck-controls {
+    font-family: 'Archivo', sans-serif;
+    color: #fff;
+    background: rgba(0,0,0,.55);
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    user-select: none;
+}
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+<div class="deck-stage" id="stage">
+
+<!-- === 1. 标题页 === -->
+<section class="slide active">
+  <div class="redbar"></div>
+  <div class="titlepage">
+    <div class="kicker reveal">课程 · 科普 / 马克的技术工作坊 / 10:31</div>
+    <h1 class="reveal r2">Token 到底是什么？</h1>
+    <div class="sub reveal r3">揭秘大模型背后的“文字压缩术” —— 从 Context Window 到 BPE 训练全流程</div>
+    <div class="meta reveal r4">
+      <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA" target="_blank" rel="noopener">观看原视频</a>
+      <span style="color:var(--muted)">本 deck 由 video2slides 索引文档渲染 · 时间角标可跳回原片对应时刻</span>
+    </div>
+  </div>
+  <div class="pageno">01 / 19</div>
+</section>
+
+<!-- === 2. 章 1 分隔 === -->
+<section class="slide">
+  <div class="geo"></div>
+  <div class="section-inner">
+    <div class="idx reveal">01</div>
+    <h2 class="reveal r2">开场:40 万 Token 之问</h2>
+    <p class="summary reveal r3">Context Window 代表模型一次能处理的最大信息量,但它的单位是 Token 而非字——Token 是什么、怎么生成,是本片要讲透的问题。</p>
+    <a class="badge reveal r4" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=0s" target="_blank" rel="noopener">00:00 – 00:37</a>
+  </div>
+  <div class="pageno">02 / 19</div>
+</section>
+
+<!-- === 3. 1.1 (代理画质) === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal">
+      <img src="assets/proxy_f_00001.jpg" alt="Context Window 与 40 万 Token">
+      <span class="proxytag">代理画质</span>
+    </div>
+    <div class="side">
+      <div class="kicker reveal">01 · 开场</div>
+      <h2 class="reveal r2">Context Window 的单位是 Token,不是字</h2>
+      <p class="summary reveal r3">GPT-5.2 的 40 万 context window 指 40 万个 Token;Token 与字、词的关系少有人讲清。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「它代表了模型一次能够处理的最大信息量」<small>—— 00:03</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=18s" target="_blank" rel="noopener">00:18</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">03 / 19</div>
+</section>
+
+<!-- === 4. 章 2 分隔 === -->
+<section class="slide">
+  <div class="geo circle"></div>
+  <div class="section-inner">
+    <div class="idx reveal">02</div>
+    <h2 class="reveal r2">大模型的基本工作原理</h2>
+    <p class="summary reveal r3">模型只认数字,人与模型之间必须有翻译官 Tokenizer,负责编码(文字→数字)与解码(数字→文字)。</p>
+    <a class="badge reveal r4" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=37s" target="_blank" rel="noopener">00:37 – 03:06</a>
+  </div>
+  <div class="pageno">04 / 19</div>
+</section>
+
+<!-- === 5. 2.1 (代理画质) === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal">
+      <img src="assets/proxy_f_00002.jpg" alt="大模型只认数字">
+      <span class="proxytag">代理画质</span>
+    </div>
+    <div class="side">
+      <div class="kicker reveal">02 · 工作原理</div>
+      <h2 class="reveal r2">模型只认数字:翻译官 Tokenizer</h2>
+      <p class="summary reveal r3">大模型本质是巨大的数学函数,输入输出全是数字;Tokenizer 站在人与模型之间,负责编码与解码两个环节。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「这个翻译官的名字就叫做 Tokenizer」<small>—— 00:53</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=41s" target="_blank" rel="noopener">00:41</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">05 / 19</div>
+</section>
+
+<!-- === 6. 2.2 === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal"><img src="assets/final_2.2_96.2.jpg" alt="编码环节:切分"></div>
+    <div class="side">
+      <div class="kicker reveal">02 · 工作原理</div>
+      <h2 class="reveal r2">编码环节:切分 + 映射</h2>
+      <p class="summary reveal r3">编码分两步:先把问题切成最小单位 Token(示例切出 4 个),再把每个 Token 映射为一一对应的 Token ID——硬币的正反面。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「第一步，切分」<small>—— 01:30</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=96s" target="_blank" rel="noopener">01:36</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">06 / 19</div>
+</section>
+
+<!-- === 7. 2.3 === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal"><img src="assets/final_2.3_153.7.jpg" alt="解码环节全流程"></div>
+    <div class="side">
+      <div class="kicker reveal">02 · 工作原理</div>
+      <h2 class="reveal r2">模型运算与解码环节</h2>
+      <p class="summary reveal r3">Token ID 列表交给模型运算,吐出的 Token ID 再由 Tokenizer 解码映射回文字;解码无需切分。切分与映射如何实现?这要从 Tokenizer 的训练说起。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「这次发挥作用的就是解码环节了」<small>—— 02:17</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=153s" target="_blank" rel="noopener">02:33</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">07 / 19</div>
+</section>
+
+<!-- === 8. 章 3 分隔 === -->
+<section class="slide">
+  <div class="geo hollow"></div>
+  <div class="section-inner">
+    <div class="idx reveal">03</div>
+    <h2 class="reveal r2">Tokenizer 的训练过程(BPE)</h2>
+    <p class="summary reveal r3">Tokenizer 是训练出来的:以 BPE 为例,从训练材料统计共现,迭代合并高频相邻字,产出词表与合并规则两个核心组件。</p>
+    <a class="badge reveal r4" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=186s" target="_blank" rel="noopener">03:06 – 07:42</a>
+  </div>
+  <div class="pageno">08 / 19</div>
+</section>
+
+<!-- === 9. 3.1 === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal"><img src="assets/final_3.1_189.8.jpg" alt="Unigram 与 BPE"></div>
+    <div class="side">
+      <div class="kicker reveal">03 · 训练过程</div>
+      <h2 class="reveal r2">Tokenizer 是训练出来的:Unigram 与 BPE</h2>
+      <p class="summary reveal r3">训练远比大模型训练简单;Google 多用 Unigram,OpenAI 和 Anthropic 多用 BPE,本片以 BPE 演示。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「Tokenizer 其实是被训练出来的」<small>—— 03:09</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=189s" target="_blank" rel="noopener">03:09</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">09 / 19</div>
+</section>
+
+<!-- === 10. 3.2 === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal"><img src="assets/final_3.2_254.3.jpg" alt="词表初始化"></div>
+    <div class="side">
+      <div class="kicker reveal">03 · 训练过程</div>
+      <h2 class="reveal r2">词表初始化:单字入表,Token ID 只是编号</h2>
+      <p class="summary reveal r3">所有出现过的单字进词表,逐个分配 Token ID;Token ID 无语义,与 Embedding 无关,仅需保证一对一。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「它就是个编号而已」<small>—— 04:20</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=254s" target="_blank" rel="noopener">04:14</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">10 / 19</div>
+</section>
+
+<!-- === 11. 3.3 === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal"><img src="assets/final_3.3_307.0.jpg" alt="单字词表映射"></div>
+    <div class="side">
+      <div class="kicker reveal">03 · 训练过程</div>
+      <h2 class="reveal r2">单字词表可用但低效:目标是词级 Token</h2>
+      <p class="summary reveal r3">单字词表已是简易 Tokenizer,但 9 字输入远慢于 4 词输入;把常见词收进词表才是最佳方案,方法是找规律。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「让这些常见的词作为 Token 才是最佳方案」<small>—— 05:19</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=307s" target="_blank" rel="noopener">05:07</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">11 / 19</div>
+</section>
+
+<!-- === 12. 3.4 (代理画质) === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal">
+      <img src="assets/proxy_f_00013.jpg" alt="BPE 训练完毕:词表与合并规则">
+      <span class="proxytag">代理画质</span>
+    </div>
+    <div class="side">
+      <div class="kicker reveal">03 · 训练过程</div>
+      <h2 class="reveal r2">BPE 迭代合并:智能 → 人工 → 人工智能</h2>
+      <p class="summary reveal r3">扫描统计共现频率,最高者合并并同步更新词表与合并规则;合并产物可继续参与合并,训练完毕后核心组件即词表 + 合并规则。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「它的核心组件就是词表和合并规则」<small>—— 07:34</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=451s" target="_blank" rel="noopener">07:31</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">12 / 19</div>
+</section>
+
+<!-- === 13. 章 4 分隔 === -->
+<section class="slide">
+  <div class="geo tri"></div>
+  <div class="section-inner">
+    <div class="idx reveal">04</div>
+    <h2 class="reveal r2">Tokenizer 的使用过程</h2>
+    <p class="summary reveal r3">回到运行流程:编码阶段先按合并规则完成切分、再查词表完成映射;解码只做反向映射。</p>
+    <a class="badge reveal r4" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=462s" target="_blank" rel="noopener">07:42 – 09:27</a>
+  </div>
+  <div class="pageno">13 / 19</div>
+</section>
+
+<!-- === 14. 4.1 纯文字页(dedup 视图级唯一性:全环路图已用于 2.3) === -->
+<section class="slide">
+  <div class="textpage">
+    <div class="kicker reveal">04 · 使用过程</div>
+    <h2 class="reveal r2">编码·切分:逐条应用合并规则</h2>
+    <div class="steps reveal r3">
+      <div class="step"><div class="no">STEP 1</div><p>把用户问题先拆成一个一个的单字。</p></div>
+      <div class="step"><div class="no">STEP 2</div><p>按训练所得合并规则的顺序逐条套用:智+能→智能,人+工→人工。</p></div>
+      <div class="step"><div class="no">STEP 3</div><p>合并可叠加:人工+智能→人工智能;喜+欢→喜欢,马+克→马克。</p></div>
+      <div class="step"><div class="no">STEP 4</div><p>「马克喜欢人工智能吗」9 个字最终切分为 4 个 Token。</p></div>
+    </div>
+    <div class="quotes reveal r4" style="display:flex;gap:40px;align-items:center">
+      <div class="qmark" style="flex:1">「再把之前训练好的合并规则拿过来」<small>—— 08:01</small></div>
+      <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=465s" target="_blank" rel="noopener">07:45</a>
+    </div>
+  </div>
+  <div class="pageno">14 / 19</div>
+</section>
+
+<!-- === 15. 4.2 === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal"><img src="assets/final_4.2_545.0.jpg" alt="映射查词表"></div>
+    <div class="side">
+      <div class="kicker reveal">04 · 使用过程</div>
+      <h2 class="reveal r2">编码·映射与解码:查词表</h2>
+      <p class="summary reveal r3">映射即查词表取 Token ID(马克→35、喜欢→36);解码反向查表,36 映射回“喜欢”,全流程闭环。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「发现 36 对应的是“喜欢”这两个字」<small>—— 09:17</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=545s" target="_blank" rel="noopener">09:05</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">15 / 19</div>
+</section>
+
+<!-- === 16. 章 5 分隔 === -->
+<section class="slide">
+  <div class="geo"></div>
+  <div class="section-inner">
+    <div class="idx reveal">05</div>
+    <h2 class="reveal r2">Token 与字数的换算关系</h2>
+    <p class="summary reveal r3">Tokenizer 既是翻译机也是压缩机;1 Token ≈ 1.5–2 个汉字或 0.75 个英文单词,40 万 Token ≈ 60–80 万汉字。</p>
+    <a class="badge reveal r4" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=567s" target="_blank" rel="noopener">09:27 – 10:31</a>
+  </div>
+  <div class="pageno">16 / 19</div>
+</section>
+
+<!-- === 17. 5.1 === -->
+<section class="slide">
+  <div class="page">
+    <div class="framecard reveal"><img src="assets/final_5.1_571.3.jpg" alt="40 万 Token ≠ 40 万字"></div>
+    <div class="side">
+      <div class="kicker reveal">05 · 换算关系</div>
+      <h2 class="reveal r2">Tokenizer 是压缩机:9 字变 4 Token</h2>
+      <p class="summary reveal r3">常在一起的字被合成一个 Token,输入更少、训练与推理效率更高——回答了开头 Token ≠ 字的疑问。</p>
+      <div class="quotes reveal r4">
+        <div class="qmark">「它还是一个压缩机」<small>—— 09:41</small></div>
+        <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=571s" target="_blank" rel="noopener">09:31</a>
+      </div>
+    </div>
+  </div>
+  <div class="pageno">17 / 19</div>
+</section>
+
+<!-- === 18. 5.2 纯文字页(dedup 视图级唯一性:同页帧已用于 5.1;数字换算最宜文字版式) === -->
+<section class="slide">
+  <div class="textpage">
+    <div class="kicker reveal">05 · 换算关系</div>
+    <h2 class="reveal r2">换算法则:1 Token ≈ 1.5–2 汉字</h2>
+    <div class="bignum-row reveal r3">
+      <div class="bignum"><div class="n">1.5–2</div><p>1 个 Token 大概能代表的<b>汉字</b>数</p></div>
+      <div class="bignum"><div class="n">4 / 0.75</div><p>≈ 4 个<b>英文字母</b>,或 0.75 个<b>英文单词</b></p></div>
+      <div class="bignum"><div class="n">60–80 万</div><p>40 万 Token 的 Context Window 约合的<b>汉字量</b>(≈ 30 万英文单词)</p></div>
+    </div>
+    <div class="quotes reveal r4" style="display:flex;gap:40px;align-items:center">
+      <div class="qmark" style="flex:1">「一个 Token 大概能够代表 1.5 到 2 个汉字」<small>—— 09:59</small></div>
+      <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA&t=597s" target="_blank" rel="noopener">09:57</a>
+    </div>
+  </div>
+  <div class="pageno">18 / 19</div>
+</section>
+
+<!-- === 19. 结尾页 === -->
+<section class="slide">
+  <div class="redbar"></div>
+  <div class="titlepage">
+    <div class="kicker reveal">回顾</div>
+    <h1 class="reveal r2" style="font-size:96px">Token = 文字的压缩单位</h1>
+    <div class="sub reveal r3">Tokenizer 用词表 + 合并规则完成编码与解码;它既是翻译机,也是压缩机。</div>
+    <div class="meta reveal r4">
+      <a class="badge" href="https://www.youtube.com/watch?v=QNiaoD5RxPA" target="_blank" rel="noopener">回看原视频</a>
+      <span style="color:var(--muted)">马克的技术工作坊 · 用最通俗的语言,讲最硬核的技术</span>
+    </div>
+  </div>
+  <div class="pageno">19 / 19</div>
+</section>
+
+</div>
+</div>
+<div class="deck-controls">← → 翻页 · 空格下一页 · E 编辑文字</div>
+
+<script>
+/* === 舞台缩放:1920×1080 画布整体等比缩放到视口 === */
+(function () {
+  const stage = document.getElementById('stage');
+  function fit() {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px, ${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+  }
+  addEventListener('resize', fit); fit();
+})();
+
+/* === 翻页导航 === */
+(function () {
+  const slides = [...document.querySelectorAll('.slide')];
+  let cur = 0;
+  function go(n) {
+    n = Math.max(0, Math.min(slides.length - 1, n));
+    slides[cur].classList.remove('active');
+    slides[n].classList.add('active');
+    cur = n;
+  }
+  addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(cur + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(cur - 1); }
+    if (e.key === 'Home') go(0);
+    if (e.key === 'End') go(slides.length - 1);
+    if (e.key === 'e' || e.key === 'E') toggleEdit();
+  });
+  let touchX = null;
+  addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  addEventListener('touchend', (e) => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 60) go(cur + (dx < 0 ? 1 : -1));
+    touchX = null;
+  }, { passive: true });
+
+  /* === 行内文字编辑(E 切换,Ctrl+S 下载保存) === */
+  let editing = false;
+  window.toggleEdit = function () {
+    editing = !editing;
+    document.querySelectorAll('.slide h1,.slide h2,.slide p,.slide .qmark,.slide .sub,.slide .kicker,.step p,.bignum p')
+      .forEach(el => el.contentEditable = editing);
+    document.querySelector('.deck-controls').textContent =
+      editing ? '编辑中… E 退出 · Ctrl+S 保存' : '← → 翻页 · 空格下一页 · E 编辑文字';
+  };
+  addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's' && editing) {
+      e.preventDefault();
+      const blob = new Blob(['<!DOCTYPE html>\n' + document.documentElement.outerHTML], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'index.html'; a.click();
+    }
+  });
+})();
+</script>
+</body>
+</html>

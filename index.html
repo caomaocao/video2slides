@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>video2slides — live demos</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #1a1a1a; background: #fafafa;
+  }
+  @media (prefers-color-scheme: dark) { body { color: #e8e8e8; background: #121212; } .card { background:#1c1c1c!important; border-color:#2a2a2a!important; } .muted{color:#999!important;} }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 56px 24px 80px; }
+  h1 { font-size: 40px; letter-spacing: -0.02em; margin: 0 0 6px; }
+  .tag { font-size: 18px; color: #555; margin: 0 0 4px; }
+  .muted { color: #777; font-size: 14px; }
+  a { color: #e8501f; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 22px; margin: 40px 0 32px; }
+  .card { display: block; border: 1px solid #e4e4e4; border-radius: 14px; overflow: hidden; background: #fff; transition: transform .12s ease, box-shadow .12s ease; color: inherit; }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,.12); text-decoration: none; }
+  .card img { display: block; width: 100%; height: auto; border-bottom: 1px solid #eee; }
+  .card .body { padding: 16px 18px 18px; }
+  .card h2 { font-size: 19px; margin: 0 0 4px; }
+  .card p { margin: 0; font-size: 14px; color: #777; }
+  .badge { display:inline-block; font-size:12px; font-weight:600; color:#e8501f; border:1px solid #e8501f33; border-radius:999px; padding:2px 10px; margin-bottom:10px; }
+  footer { margin-top: 40px; font-size: 14px; color: #888; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <span class="badge">LIVE DEMO</span>
+    <h1>video2slides</h1>
+    <p class="tag">Turn any video into a self-contained, replayable slide deck — every frame &amp; quote deep-linked back to the source timestamp.</p>
+    <p class="muted">These are real decks produced by the skill. Open one and click any <strong>timestamp badge</strong> to jump into the source video. ← → to flip pages.</p>
+
+    <div class="grid">
+      <a class="card" href="./token/">
+        <img src="./token-preview.png" alt="slide-driven lecture deck"/>
+        <div class="body">
+          <h2>Slide-driven lecture</h2>
+          <p>“What is a Token” · YouTube · Swiss Modern · 19 pages</p>
+        </div>
+      </a>
+      <a class="card" href="./nlp/">
+        <img src="./nlp-preview.png" alt="screen-recording course deck"/>
+        <div class="body">
+          <h2>Screen-recording course</h2>
+          <p>NLP course overview · Bilibili · 13 pages</p>
+        </div>
+      </a>
+    </div>
+
+    <footer>
+      Source &amp; docs: <a href="https://github.com/caomaocao/video2slides">github.com/caomaocao/video2slides</a>
+      &nbsp;·&nbsp; <span class="muted">Demo decks are built from third-party videos and shown for illustration only; footage copyright belongs to the original creators.</span>
+    </footer>
+  </div>
+</body>
+</html>
