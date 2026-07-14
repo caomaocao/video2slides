@@ -286,7 +286,7 @@ def run_cli(argv=None) -> int:
             return 3
         audio = wp(work, "audio")
         if not args.force and is_fresh(out_p, audio):
-            emit(f"transcript: {out_p}(已最新,跳过)", next_hint=f"python scripts/signals.py --work {work}")
+            emit(f"transcript: {out_p}(已最新,跳过)", next_hint=f'$PYBIN "$SKILL_DIR/scripts/signals.py" --work {work}')
             return 0
         if not audio.exists():
             emit("缺 .work/audio.mp3——先跑 fetch.py(无字幕轨时会自动抽音频轨)")
@@ -314,11 +314,11 @@ def run_cli(argv=None) -> int:
                           "source": f"asr:{cfg['backend']}", "segments": segs})
         gap = f",失败块 {failed}(留缺口)" if failed else ""
         emit(f"transcript: {out_p}({len(segs)} 段,asr:{cfg['backend']}{gap})",
-             next_hint=f"python scripts/signals.py --work {work}")
+             next_hint=f'$PYBIN "$SKILL_DIR/scripts/signals.py" --work {work}')
         return 0
     sub_p = Path(sub["path"])
     if not args.force and is_fresh(out_p, sub_p):
-        emit(f"transcript: {out_p}(已最新,跳过)", next_hint="python scripts/signals.py --work " + str(work))
+        emit(f"transcript: {out_p}(已最新,跳过)", next_hint='$PYBIN "$SKILL_DIR/scripts/signals.py" --work ' + str(work))
         return 0
     text = sub_p.read_text(encoding="utf-8")
     cues = parse_srt(text) if sub_p.suffix == ".srt" else parse_vtt(text)
@@ -327,7 +327,7 @@ def run_cli(argv=None) -> int:
         emit("解析出 0 段——字幕文件格式异常或内容为空,不落盘")
         return 1
     save_json(out_p, {"language": meta.get("language"), "source": f"{sub['kind']}:{sub['lang']}", "segments": segs})
-    emit(f"transcript: {out_p}({len(segs)} 段)", next_hint=f"python scripts/signals.py --work {work}")
+    emit(f"transcript: {out_p}({len(segs)} 段)", next_hint=f'$PYBIN "$SKILL_DIR/scripts/signals.py" --work {work}')
     return 0
 
 

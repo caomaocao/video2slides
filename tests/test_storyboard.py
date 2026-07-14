@@ -120,6 +120,28 @@ def test_dedup_singletons_get_null_group_and_primary_true(tmp_path, fake_rgb_sig
     assert len(rep["groups"]) == 1
 
 
+# 跨平台可移植性 票03:dedup --no-vision 抬合并门 → 宁欠勿并(无视觉宿主降级,spec §视觉能力处理 6a)
+def test_dedup_no_vision_under_merges(monkeypatch, tmp_path):
+    """diff 落在 [NO_VISION, DUP) 之间的两帧:正常模式合并,--no-vision 不合并(宁欠勿并)。"""
+    monkeypatch.setattr(sb_mod, "rgb_signature", lambda p: b"\x00" * 768)
+    # 0.07 夹在 DUP_RATIO_NO_VISION(0.05)与 DUP_RATIO(0.10)之间,恰能验出阈值翻转
+    monkeypatch.setattr(sb_mod, "sig_diff_ratio", lambda a, b, **k: 0.07)
+
+    def _two():
+        p1 = tmp_path / "a.jpg"; p1.write_bytes(b"a")
+        p2 = tmp_path / "b.jpg"; p2.write_bytes(b"b")
+        return {"outline": [_node("1", str(p1), 0.9), _node("2", str(p2), 0.8)]}
+
+    rep_n = sb_mod.dedup_across_nodes(_two())                      # 默认视觉模式
+    assert len(rep_n["groups"]) == 1                              # 0.07<0.10 → 并成一组
+
+    sb_nv = _two()
+    rep_v = sb_mod.dedup_across_nodes(sb_nv, no_vision=True)       # 无视觉:抬门(降阈)
+    assert len(rep_v["groups"]) == 0                              # 0.07≥0.05 → 不并,各自单帧
+    ms = [nd["media"][0] for nd in sb_nv["outline"]]
+    assert all(m["dedup_group"] is None and m["dedup_primary"] for m in ms)  # 单帧组 null/primary
+
+
 def test_validate_checks_dedup_primary_uniqueness(tmp_path):
     img = tmp_path / "a.jpg"; img.write_bytes(b"img")   # validate 只查存在性,纯字节即可
     def annotated(p1: bool, p2: bool) -> dict:

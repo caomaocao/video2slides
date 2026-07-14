@@ -8,7 +8,8 @@ import sys
 import urllib.parse
 from pathlib import Path
 
-from common import emit, ffprobe_duration, is_fresh, load_env_config, load_json, run, save_json, wp
+from common import (emit, ffprobe_duration, is_fresh, load_env_config, load_json, run,
+                    save_json, wp, ytdlp_cookie_flags)
 from transcribe import resolve_asr_config
 
 
@@ -130,14 +131,14 @@ def pick_subtitle_track(subtitles: dict, automatic: dict, video_lang: str | None
     return None
 
 
-def _ytdlp_base(source: dict, cookies_from_browser: str | None) -> list:
-    cmd = ["yt-dlp", "--no-playlist"]
-    if cookies_from_browser:
-        cmd += ["--cookies-from-browser", cookies_from_browser]
-    return cmd + [source["canonical_url"]]
+def _ytdlp_base(source: dict, cookies_from_browser: str | None,
+                cookies_file: str | None = None) -> list:
+    return ["yt-dlp", "--no-playlist", *ytdlp_cookie_flags(cookies_from_browser, cookies_file),
+            source["canonical_url"]]
 
 
-def fetch_meta(source: dict, work: Path, cookies: str | None, force: bool) -> dict:
+def fetch_meta(source: dict, work: Path, cookies: str | None, force: bool,
+               cookies_file: str | None = None) -> dict:
     meta_p, priors_p, raw_p = wp(work, "meta"), wp(work, "priors"), wp(work, "raw_info")
     if not force and is_fresh(meta_p) and is_fresh(priors_p):
         return load_json(meta_p)
@@ -148,7 +149,7 @@ def fetch_meta(source: dict, work: Path, cookies: str | None, force: bool) -> di
         save_json(meta_p, meta)
         save_json(priors_p, priors)
         return meta
-    cmd = _ytdlp_base(source, cookies)
+    cmd = _ytdlp_base(source, cookies, cookies_file)
     # --write-subs/--write-auto-subs 触发 yt-dlp 的惰性字幕提取门:B 站等提取器
     # 仅在这些参数存在时才调字幕 API,裸 -J 会得到空 subtitles(2026-07-11 验收 #11 实测);
     # -J 隐含 simulate,不会真正下载字幕文件,对 YouTube 无副作用
@@ -171,7 +172,8 @@ def proxy_format_selector() -> str:
             "b[height<=360]/b[width<=360]")
 
 
-def fetch_proxy(source: dict, work: Path, cookies: str | None, force: bool) -> Path:
+def fetch_proxy(source: dict, work: Path, cookies: str | None, force: bool,
+                cookies_file: str | None = None) -> Path:
     proxy = wp(work, "proxy")
     if not force and is_fresh(proxy):
         return proxy
@@ -184,7 +186,7 @@ def fetch_proxy(source: dict, work: Path, cookies: str | None, force: bool) -> P
              "-an", "-c:v", "libx264", "-preset", "veryfast",
              "-crf", "28", str(proxy)], timeout=3600)
     else:
-        cmd = _ytdlp_base(source, cookies)
+        cmd = _ytdlp_base(source, cookies, cookies_file)
         cmd[-1:-1] = ["-f", proxy_format_selector(), "--remux-video", "mp4",
                       "-o", str(work / "proxy.%(ext)s")]
         run(cmd, timeout=1800)
@@ -193,16 +195,18 @@ def fetch_proxy(source: dict, work: Path, cookies: str | None, force: bool) -> P
     return proxy
 
 
-def subs_download_cmd(source: dict, track: tuple[str, str], work: Path, cookies: str | None) -> list:
+def subs_download_cmd(source: dict, track: tuple[str, str], work: Path, cookies: str | None,
+                      cookies_file: str | None = None) -> list:
     kind, lang = track
-    cmd = _ytdlp_base(source, cookies)
+    cmd = _ytdlp_base(source, cookies, cookies_file)
     flag = "--write-auto-subs" if kind == "auto" else "--write-subs"
     cmd[-1:-1] = ["--skip-download", flag, "--sub-langs", lang,
                   "-o", str(wp(work, "subs_dir") / "sub")]
     return cmd
 
 
-def fetch_subs(source: dict, work: Path, cookies: str | None, force: bool):
+def fetch_subs(source: dict, work: Path, cookies: str | None, force: bool,
+               cookies_file: str | None = None):
     # 本地无字幕源,必走 ASR/--transcript(spec §2)
     if source["platform"] == "local":
         return None
@@ -216,7 +220,7 @@ def fetch_subs(source: dict, work: Path, cookies: str | None, force: bool):
     if track is None:
         return None
     subs_dir.mkdir(parents=True, exist_ok=True)
-    run(subs_download_cmd(source, track, work, cookies), timeout=300)
+    run(subs_download_cmd(source, track, work, cookies, cookies_file), timeout=300)
     # 精确匹配刚下载的目标轨文件(yt-dlp 命名 sub.<lang>.<ext>),避免残留旧语言文件按字母序被错选
     files = [f for f in sorted(subs_dir.glob(f"sub.{track[1]}.*")) if f.suffix in {".vtt", ".srt"}]
     if not files:
@@ -229,7 +233,8 @@ def fetch_subs(source: dict, work: Path, cookies: str | None, force: bool):
     return sub
 
 
-def fetch_audio(source: dict, work: Path, cookies: str | None, force: bool) -> Path:
+def fetch_audio(source: dict, work: Path, cookies: str | None, force: bool,
+                cookies_file: str | None = None) -> Path:
     """音频轨懒抓(仅无字幕轨且 ASR 可用时调用):在线走 yt-dlp -x,本地走 ffmpeg 抽轨。"""
     audio = wp(work, "audio")
     if not force and is_fresh(audio):
@@ -238,7 +243,7 @@ def fetch_audio(source: dict, work: Path, cookies: str | None, force: bool) -> P
         run(["ffmpeg", "-y", "-v", "error", "-i", source["path"], "-vn",
              "-c:a", "libmp3lame", "-b:a", "64k", "-ac", "1", str(audio)], timeout=3600)
     else:
-        cmd = _ytdlp_base(source, cookies)
+        cmd = _ytdlp_base(source, cookies, cookies_file)
         cmd[-1:-1] = ["-f", "ba", "-x", "--audio-format", "mp3", "--audio-quality", "64K",
                       "-o", str(work / "audio.%(ext)s")]
         run(cmd, timeout=3600)
@@ -252,15 +257,18 @@ def main(argv=None) -> int:
     ap.add_argument("--url", required=True)
     ap.add_argument("--work", required=True)
     ap.add_argument("--cookies-from-browser", default=None)
+    ap.add_argument("--cookies", default=None,
+                    help="cookies 文件路径(headless 无 Chrome 时替代 --cookies-from-browser,取 B 站字幕)")
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args(argv)
 
     work = Path(args.work)
     work.mkdir(parents=True, exist_ok=True)
     source = normalize_url(args.url)
-    meta = fetch_meta(source, work, args.cookies_from_browser, args.force)
-    proxy = fetch_proxy(source, work, args.cookies_from_browser, args.force)
-    sub = fetch_subs(source, work, args.cookies_from_browser, args.force)
+    cfb, cf = args.cookies_from_browser, args.cookies
+    meta = fetch_meta(source, work, cfb, args.force, cf)
+    proxy = fetch_proxy(source, work, cfb, args.force, cf)
+    sub = fetch_subs(source, work, cfb, args.force, cf)
     if sub is None:
         # 无字幕轨时尝试 ASR 流程
         try:
@@ -272,16 +280,16 @@ def main(argv=None) -> int:
             emit("无可用字幕轨——ASR_BACKEND=none,需改配 ASR 后端(funasr/mimo/qwen…)后重试"
                  "(转写文件直供 --transcript 为未来版本能力,本切片未实现)")
             return 3
-        audio = fetch_audio(source, work, args.cookies_from_browser, args.force)
+        audio = fetch_audio(source, work, cfb, args.force, cf)
         emit(f"audio: {audio}(无字幕轨 → ASR:{cfg['backend']})",
-             next_hint=f"python scripts/transcribe.py --work {work}")
+             next_hint=f'$PYBIN "$SKILL_DIR/scripts/transcribe.py" --work {work}')
         return 0
     emit(
         f"meta: {wp(work, 'meta')}({meta['title'][:40]},{meta['duration']:.0f}s)",
         f"priors: {wp(work, 'priors')}",
         f"proxy: {proxy}",
         f"subs: {sub['path']}({sub['kind']}/{sub['lang']})",
-        next_hint=f"python scripts/transcribe.py --work {work}",
+        next_hint=f'$PYBIN "$SKILL_DIR/scripts/transcribe.py" --work {work}',
     )
     return 0
 

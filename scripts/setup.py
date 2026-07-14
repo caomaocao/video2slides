@@ -81,6 +81,9 @@ def probe() -> dict:
         res[name] = {"found": found, "version": list(ver)}
     res["ffmpeg"]["blurdetect"] = res["ffmpeg"]["found"] and tuple(res["ffmpeg"]["version"]) >= (5, 1)
     res["tesseract"] = {"found": shutil.which("tesseract") is not None}
+    # node/deno:yt-dlp 解 YouTube JS 挑战(EJS)需其一;本地文件/B 站不需要(fail-open)
+    node, deno = shutil.which("node") is not None, shutil.which("deno") is not None
+    res["js_runtime"] = {"found": node or deno, "node": node, "deno": deno}
     return res
 
 
@@ -145,12 +148,16 @@ def main(argv=None) -> int:
         if not args.check and not args.json:
             emit(f"ASR 后端不可用:{asr_msg}", "可 ASR_BACKEND=none 继续(帧-only,质量受限)")
         return 3
+    # node/deno 缺失:纯提示、不阻塞(fail-open)——YouTube 取流需其一,本地文件/B 站不需要
+    if not p.get("js_runtime", {}).get("found", True) and not args.check and not args.json:
+        emit("未检出 node 或 deno:YouTube 取流需其一解 JS 挑战(本地文件/B 站不需要,不阻塞)",
+             "装其一:macOS `brew install node` / Linux 发行版包管理器 / `curl -fsSL https://deno.land/install.sh | sh`")
     if not p["tesseract"]["found"]:
         if not args.check and not args.json:
             emit("tesseract 缺失:文字密度打分降级为边缘密度代理(不阻塞)")
         return 4
     if not args.check and not args.json:
-        emit("预检通过", next_hint="python scripts/fetch.py --url <URL> --work <DIR>")
+        emit("预检通过", next_hint='$PYBIN "$SKILL_DIR/scripts/fetch.py" --url <URL> --work <DIR>')
     return 0
 
 

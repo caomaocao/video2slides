@@ -95,3 +95,12 @@ def test_load_env_config_uses_xdg(monkeypatch, tmp_path):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
     monkeypatch.delenv("ASR_BACKEND", raising=False)
     assert common.load_env_config().get("ASR_BACKEND") == "none"
+
+
+# 跨平台可移植性 票01(P2-8):cookie 参数下沉 common,fetch/frames 共用一份
+def test_ytdlp_cookie_flags():
+    assert common.ytdlp_cookie_flags(None, None) == []
+    assert common.ytdlp_cookie_flags("chrome") == ["--cookies-from-browser", "chrome"]
+    assert common.ytdlp_cookie_flags(None, "/c.txt") == ["--cookies", "/c.txt"]
+    assert common.ytdlp_cookie_flags("chrome", "/c.txt") == [
+        "--cookies-from-browser", "chrome", "--cookies", "/c.txt"]

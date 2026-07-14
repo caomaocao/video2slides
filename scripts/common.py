@@ -59,6 +59,18 @@ def run(cmd: list, timeout: int = 600) -> str:
     return r.stdout
 
 
+def ytdlp_cookie_flags(cookies_from_browser: str | None,
+                       cookies_file: str | None = None) -> list[str]:
+    """yt-dlp cookie 参数:浏览器读取(有本机 Chrome)或 cookies 文件(headless/无浏览器,跨平台 P2-8)。
+    二者可并存(通常二选一),空则返回 []。fetch/frames 两处取流共用一份,避免各自重抄。"""
+    flags: list[str] = []
+    if cookies_from_browser:
+        flags += ["--cookies-from-browser", cookies_from_browser]
+    if cookies_file:
+        flags += ["--cookies", cookies_file]
+    return flags
+
+
 def emit(*lines: str, next_hint: str | None = None) -> None:
     for line in lines:
         print(line)

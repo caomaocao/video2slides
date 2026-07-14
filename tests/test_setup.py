@@ -152,6 +152,28 @@ def test_arch_gate_arm64_only_backend_on_x86(monkeypatch):
     assert not ok and "arm64" in msg and "funasr" in msg
 
 
+# 跨平台可移植性 票01(P0-4):预检探 node/deno——YouTube JS 挑战需其一,缺则提示但 fail-open
+def test_probe_includes_js_runtime(monkeypatch):
+    monkeypatch.setattr(setup_mod, "check_asr", lambda: (True, "ok"))
+    p = setup_mod.probe()
+    assert "js_runtime" in p and isinstance(p["js_runtime"]["found"], bool)
+
+
+def test_js_runtime_missing_is_advisory_not_blocking(monkeypatch, capsys):
+    """缺 node/deno 只提示、不阻塞(本地/B 站不需要):exit 仍随 tesseract 逻辑,不因此变 2/3。"""
+    fake = {"platform": {"system": "Darwin", "machine": "arm64"},
+            "ffmpeg": {"found": True, "version": [8, 0], "blurdetect": True},
+            "ffprobe": {"found": True, "version": [8, 0]},
+            "yt_dlp": {"found": True, "version": [2026, 7]},
+            "tesseract": {"found": True},
+            "js_runtime": {"found": False, "node": False, "deno": False}}
+    monkeypatch.setattr(setup_mod, "probe", lambda: fake)
+    monkeypatch.setattr(setup_mod, "check_asr", lambda: (True, "ok"))
+    assert setup_mod.main([]) == 0                        # 不阻塞(fail-open)
+    out = capsys.readouterr().out
+    assert "node" in out and "deno" in out               # 但有清晰提示
+
+
 def test_missing_binary_hint_follows_platform(monkeypatch, capsys):
     fake = {"platform": {"system": "Linux", "machine": "x86_64"},
             "ffmpeg": {"found": False, "version": [0, 0], "blurdetect": False},

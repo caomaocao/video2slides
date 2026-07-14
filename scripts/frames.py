@@ -7,7 +7,8 @@ import shutil as _shutil
 import subprocess as _sp
 from pathlib import Path
 
-from common import emit, is_fresh, load_json, rgb_signature, run, save_json, sig_diff_ratio, wp
+from common import (emit, is_fresh, load_json, rgb_signature, run, save_json, sig_diff_ratio, wp,
+                    ytdlp_cookie_flags)
 
 # 初始值(spec §14)
 PEAK_OFFSET = 0.7        # 避糊:峰后偏移取稳定帧
@@ -291,11 +292,10 @@ def highres_format_selector() -> str:
     return "bv*[height>=1080]/bv*/b"
 
 
-def _direct_url(source: dict, cookies: str | None) -> str:
+def _direct_url(source: dict, cookies: str | None, cookies_file: str | None = None) -> str:
     """取一条高清直链(spec §8.4):直链有时效,由调用方负责过期后重取,这里只管取一次。"""
-    cmd = ["yt-dlp", "--no-playlist", "-g", "-f", highres_format_selector()]
-    if cookies:
-        cmd += ["--cookies-from-browser", cookies]
+    cmd = ["yt-dlp", "--no-playlist", "-g", "-f", highres_format_selector(),
+           *ytdlp_cookie_flags(cookies, cookies_file)]
     return run(cmd + [source["canonical_url"]], timeout=120).splitlines()[0]
 
 
@@ -314,7 +314,7 @@ def grab_final_frame(direct_url: str, t: float, out: Path, referer: str | None =
         timeout=300)
 
 
-def finalize(work: Path, cookies: str | None) -> dict:
+def finalize(work: Path, cookies: str | None, cookies_file: str | None = None) -> dict:
     """定稿懒抓:仅对 type=="frame" 且 on_page 且未 finalized 的 media 抓高清帧(clip 无 t 键,
     截取另行处理);直链每次 finalize 复用一次,过期(RuntimeError)重取一次;两次都失败则回退
     代理帧并标 quality_limited(spec §8.4、§11)。定稿帧按 final_<node_id>_<t>.jpg 命名,防止
@@ -336,13 +336,13 @@ def finalize(work: Path, cookies: str | None) -> dict:
             if local_path:
                 grab_final_frame(local_path, m["t"], out)      # 本地源:高清即原文件,直接抓帧
             else:
-                url = url or _direct_url(src, cookies)
+                url = url or _direct_url(src, cookies, cookies_file)
                 grab_final_frame(url, m["t"], out, referer=referer)
         except RuntimeError:
             try:
                 if local_path:
                     raise RuntimeError("本地源抓帧失败")        # 本地无"直链过期"概念,不重取
-                url = _direct_url(src, cookies)                 # 直链过期:重取一次(spec §8.4)
+                url = _direct_url(src, cookies, cookies_file)   # 直链过期:重取一次(spec §8.4)
                 grab_final_frame(url, m["t"], out, referer=referer)
             except RuntimeError:
                 m.update(final_path=m["proxy_path"], finalized=True, quality_limited=True)
@@ -374,6 +374,8 @@ def run_cli(argv=None) -> int:
     mode.add_argument("--finalize", action="store_true")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--cookies-from-browser", default=None)
+    ap.add_argument("--cookies", default=None,
+                    help="cookies 文件路径(headless 无 Chrome 时替代 --cookies-from-browser)")
     args = ap.parse_args(argv)
     work = Path(args.work)
     rows = load_json(wp(work, "scene_scores"))
@@ -418,7 +420,7 @@ def run_cli(argv=None) -> int:
         return 0
 
     if args.finalize:
-        rep = finalize(work, cookies=args.cookies_from_browser)
+        rep = finalize(work, cookies=args.cookies_from_browser, cookies_file=args.cookies)
         emit(f"定稿懒抓: 成功 {rep['done']},降级 {rep['degraded']}",
              next_hint="调用 frontend-slides 生成 HTML(SKILL.md 渲染节)")
         return 0

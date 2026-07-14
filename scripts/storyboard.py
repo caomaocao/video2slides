@@ -109,13 +109,22 @@ def validate_chapter_plan(plan: dict, outline: list, duration: float) -> list[st
     return errs
 
 
-def dedup_across_nodes(sb: dict) -> dict:
+DUP_RATIO = 0.10            # 判重阈值(2026-07-11 于 #13 标定,见 common.sig_diff_ratio 注释)
+DUP_RATIO_NO_VISION = 0.05  # 无视觉宿主:抬合并门(实为降阈)→ 宁欠勿并,只并近乎同帧(build ≤0.04),
+                            # 以「可见重复页」换「绝不静默吞掉不同讲义页」(跨平台 spec §视觉能力处理 6a)
+
+
+def dedup_across_nodes(sb: dict, no_vision: bool = False) -> dict:
     """跨要点媒体去重标注(spec v0.5 §6):重复组打 dedup_group/dedup_primary,不删除、不替换。
 
     分组:按 score 降序遍历,与各组代表(即组内 primary,遍历序首个成员)签名比对,
-    变化占比 < 0.10 归入该组;组按发现序命名 g1、g2…。仅 ≥2 成员的组落 group id,
+    变化占比 < 阈值归入该组;组按发现序命名 g1、g2…。仅 ≥2 成员的组落 group id,
     单帧 dedup_group=None;所有 frame media 均写 dedup_primary(唯一性归 slide 视图层,
-    宿主仲裁只改标注:拆组/换 primary)。"""
+    宿主仲裁只改标注:拆组/换 primary)。
+
+    no_vision=True(宿主无视觉、无目验仲裁):用更严阈值 DUP_RATIO_NO_VISION 宁欠勿并——
+    偏可见重复页、不静默吞掉不同讲义页(跨平台 spec §视觉能力处理 6a)。"""
+    thr = DUP_RATIO_NO_VISION if no_vision else DUP_RATIO
     picked = [(nd, m) for nd in _walk(sb["outline"]) for m in (nd.get("media") or [])
               if m.get("type") == "frame" and m.get("proxy_path")]
     picked.sort(key=lambda nm: -(nm[1].get("score") or 0))
@@ -123,7 +132,7 @@ def dedup_across_nodes(sb: dict) -> dict:
     for nd, m in picked:
         sig = rgb_signature(m["proxy_path"])
         for g in groups:
-            if sig_diff_ratio(sig, g["sig"]) < 0.10:
+            if sig_diff_ratio(sig, g["sig"]) < thr:
                 g["members"].append((nd, m))
                 break
         else:
@@ -365,6 +374,8 @@ def main() -> int:
     ap.add_argument("--work", required=True)
     ap.add_argument("--depth", type=int, default=2)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--no-vision", action="store_true",
+                    help="无视觉宿主:dedup 抬合并门(宁欠勿并),避免静默吞掉不同讲义页")
     args = ap.parse_args()
     work = Path(args.work)
     if args.cmd == "export":
@@ -384,9 +395,10 @@ def main() -> int:
              *(f"  {k}: {v}" for k, v in r.items() if k != "ok" and v))
         return 0 if r["ok"] else 5
     if args.cmd == "dedup":
-        rep = dedup_across_nodes(sb)
+        rep = dedup_across_nodes(sb, no_vision=args.no_vision)
         save_json(wp(work, "storyboard"), sb)
-        emit(f"跨要点去重标注: 重复组 {len(rep['groups'])}(不删除,唯一性由 slide 视图层执行)",
+        mode = "(无视觉:宁欠勿并)" if args.no_vision else ""
+        emit(f"跨要点去重标注{mode}: 重复组 {len(rep['groups'])}(不删除,唯一性由 slide 视图层执行)",
              *(f"  {g['group']}: " + ", ".join(f"{x['node']}@{x['t']}" for x in g["members"])
                for g in rep["groups"]))
         return 0

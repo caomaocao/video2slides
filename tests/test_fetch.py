@@ -105,6 +105,20 @@ def test_subs_download_cmd_manual_vs_ai():
     assert "--write-auto-subs" in cmd3
 
 
+# 跨平台可移植性 票01(P2-8):headless 无 Chrome 时用 --cookies <file> 取 B 站字幕
+def test_ytdlp_cookies_file_flag():
+    src = {"canonical_url": "https://www.bilibili.com/video/BVx?p=1"}
+    cmd = fetch._ytdlp_base(src, None, cookies_file="/tmp/c.txt")
+    assert "--cookies" in cmd and cmd[cmd.index("--cookies") + 1] == "/tmp/c.txt"
+    assert "--cookies-from-browser" not in cmd            # 只给 file 时不混入 browser
+
+
+def test_subs_download_cmd_threads_cookies_file():
+    src = fetch.normalize_url("https://www.bilibili.com/video/BV1k44LzPEhU?p=2")
+    cmd = fetch.subs_download_cmd(src, ("ai", "ai-zh"), Path("/tmp/w"), None, cookies_file="/tmp/c.txt")
+    assert "--cookies" in cmd and "/tmp/c.txt" in cmd
+
+
 def test_fetch_subs_picks_matching_lang_file(tmp_path, monkeypatch):
     """subs_dir 已有旧语言残留时,必须选中目标语言文件而非字母序首个。"""
     import common

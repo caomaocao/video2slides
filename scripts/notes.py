@@ -101,7 +101,7 @@ def render_notes(index_path: Path | str, depth: int = 2) -> int:
 
 
 def main() -> int:
-    """CLI:python scripts/notes.py --index <OUT>/video_index.json [--depth N]。"""
+    """CLI:$PYBIN "$SKILL_DIR/scripts/notes.py" --index <OUT>/video_index.json [--depth N]。"""
     ap = argparse.ArgumentParser()
     ap.add_argument("--index", required=True, help="video_index.json 路径(输出 notes.md 到同目录)")
     ap.add_argument("--depth", type=int, default=2, help="展开层级:短→1 中→2 长→3,不足全展开")

@@ -195,7 +195,7 @@ def run_cli(argv=None) -> int:
         f"scene_scores: {scores_p}({st['frames']} 帧)",
         f"page_boundaries: {bounds_p}({st['spikes']} 个,{st['spikes_per_min']}/min)",
         f"curve_stats: {st}",
-        next_hint=f"python scripts/frames.py --probe --work {work}(轴 A 探针仲裁)",
+        next_hint=f'$PYBIN "$SKILL_DIR/scripts/frames.py" --probe --work {work}(轴 A 探针仲裁)',
     )
     return 0
 
