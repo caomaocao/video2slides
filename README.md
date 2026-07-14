@@ -6,6 +6,8 @@
 
 A portable **agent skill** (Claude Code & other agent runtimes) that *watches the video for you*: it transcribes, outlines with cited evidence, curates the key frames, and renders a slide deck or navigable notes you can click straight back into the video.
 
+**The deck is just one view. Cuepoint's real output is a machine-readable `outline ↔ transcript ↔ frames` map of the video — a video-understanding layer that other agents and pipelines can consume to reason about footage without watching it.**
+
 English | [中文](./README.zh-CN.md)
 
 ![license](https://img.shields.io/badge/license-MIT-blue)
@@ -39,7 +41,7 @@ A good technical video is dense — a 40-minute lecture is a slide deck, a trans
 - every **frame** is the *right* frame for that point, pulled from the video and de-duplicated, not a random thumbnail;
 - every **timestamp badge** deep-links back to that exact second in the original video.
 
-It is not a captioning tool and not a summarizer bolted onto YouTube. It builds a **video index document** — a durable, self-contained mapping of `outline ↔ transcript ↔ frames` — and renders slides and notes as *views* of that document.
+It is not a captioning tool and not a summarizer bolted onto YouTube. It builds a **video index document** — a durable, self-contained, **machine-readable** mapping of `outline ↔ transcript ↔ frames` that other agents and pipelines can consume to reason about a video without decoding it — and renders slides and notes as two human-facing *views* of that document.
 
 ## Features
 
@@ -86,18 +88,18 @@ Deterministic scripts do the heavy, reproducible work; the **host agent** does t
                         └───────┬───────┘  · contact sheets → host picks the best
                                 ▼
                  ╔══════════════════════════════╗
-                 ║      video_index.json        ║   the public contract:
-                 ║          +  frames/          ║   transcript ↔ outline ↔ frames
+                 ║      video_index.json        ║   the machine-readable contract —
+                 ║          +  frames/          ║   outline ↔ transcript ↔ frames
                  ╚═══════════════╤══════════════╝   (self-contained · versioned · schema-checked)
-                        ┌────────┴────────┐
-                        ▼                 ▼
-               ┌─────────────────┐  ┌─────────────┐
-               │ frontend-slides │  │   notes.py  │
-               │   HTML deck     │  │  markdown   │
-               └────────┬────────┘  └──────┬──────┘
-                        └────────┬─────────┘
-                                 ▼
-              timestamp badges deep-link back to the exact second in the source
+                ┌────────────────┼────────────────┐
+                ▼                ▼                ▼
+       ┌─────────────────┐ ┌───────────┐ ┌────────────────────┐
+       │ frontend-slides │ │  notes.py │ │  your agent / RAG  │
+       │   HTML deck     │ │  markdown │ │  search · tooling  │
+       └────────┬────────┘ └─────┬─────┘ └────────────────────┘
+                └───────┬────────┘
+                        ▼
+       slides & notes deep-link back to the exact second · agents read the JSON as-is
 ```
 
 The pipeline is **zero-interruption**: analysis runs start-to-finish without asking you anything. There is exactly one interaction point — after the index document is exported, before rendering — where the skill asks for output form, length, and language.
@@ -160,9 +162,11 @@ The skill runs the whole pipeline unattended, then asks **once**:
 
 Output lands in `~/Desktop/video2slides/<title>_<date>/` by default: a self-contained folder (`video_index.json`, `frames/`, `index.html` and/or `notes.md`) you can move or share as-is.
 
-## Output: the video index document
+## The real product: a video index document agents can read
 
 The first-class deliverable is **`video_index.json` + `frames/`** — a single JSON embedding the full transcript (with explicit `timestamp_granularity`), the outline tree, and the selected proxy-resolution frames (relative paths, dedup annotations). It is validated against [`schemas/video_index.schema.json`](./schemas/video_index.schema.json) and carries a `schema_version` so consumers can check compatibility.
+
+**This — not the slides — is what makes Cuepoint interesting.** `video_index.json` is a compact, self-contained **video-understanding layer**: *what is said* (the full transcript), *what matters* (a hierarchical outline where every node cites a verbatim quote), and *what it looks like* (the curated frames), all cross-linked by timestamp. Hand it to another agent, a RAG index, a search pipeline, or your own tooling and it can answer *“what happens in this video, where, and show me the frame”* — **without touching the original media or re-running a vision model**. Slides and notes are just the first two consumers.
 
 Everything downstream — slides, notes, or your own tooling — reads only this document. Re-render with a different style, length, or language at **zero re-analysis cost**; the analysis never runs twice.
 
