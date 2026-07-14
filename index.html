@@ -16,6 +16,9 @@
   h1 { font-size: 40px; letter-spacing: -0.02em; margin: 0 0 6px; }
   .tag { font-size: 18px; color: #555; margin: 0 0 4px; }
   .muted { color: #777; font-size: 14px; }
+  .note { margin: 20px 0 0; padding: 14px 16px; border: 1px solid #e4e4e4; border-left: 3px solid #e8501f; border-radius: 8px; font-size: 14px; line-height: 1.55; color: #444; background: #fff; }
+  .note code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: rgba(0,0,0,.055); padding: 1px 5px; border-radius: 4px; }
+  @media (prefers-color-scheme: dark) { .note { background:#1c1c1c; border-color:#2a2a2a; color:#c4c4c4; } .note code { background:rgba(255,255,255,.09); } }
   a { color: #e8501f; text-decoration: none; }
   a:hover { text-decoration: underline; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 22px; margin: 40px 0 32px; }
@@ -36,6 +39,8 @@
     <h1>Cuepoint</h1>
     <p class="tag">Turn any video into a self-contained, replayable slide deck — every frame &amp; quote deep-linked back to the most relevant moment in the source.</p>
     <p class="muted">Four real decks the skill produced from different kinds of video — a slide lecture, a screen-recording course, an architecture documentary, and a car review. Open any and click a <strong>timestamp badge</strong> to jump into the source. ← → to flip pages.</p>
+
+    <p class="note"><strong>But these decks are just <em>one</em> view.</strong> Cuepoint's real output is <code>video_index.json</code> — a machine-readable <code>outline ↔ transcript ↔ frames</code> map of the video that other agents &amp; pipelines can consume to understand footage <em>without watching it</em>. <a href="https://github.com/caomaocao/cuepoint#the-real-product-a-video-index-document-agents-can-read">How the index document works →</a></p>
 
     <div class="grid">
       <a class="card" href="./token/">
