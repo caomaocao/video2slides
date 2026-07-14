@@ -1,6 +1,6 @@
 # Spec:平台分区作轴 A/B 分类先验
 
-> 状态:**已实现并合入**(commit `46a61dc`,2026-07-14)。本文件是追溯式设计记录(design record / PRD),捕获 grill 定案的决策与依据;规范正文(what)见 `video2slides-spec-v0.5.md` §5.1/§5.2,本文件补的是「为什么这么定」(why)。
+> 状态:**已实现并合入**(commit `46a61dc`,2026-07-14)。本文件是追溯式设计记录(design record / PRD),捕获 grill 定案的决策与依据;规范正文(what)见 `cuepoint-spec-v0.5.md` §5.1/§5.2,本文件补的是「为什么这么定」(why)。
 > 性质:**纯文档改动**——落在 `SKILL.md` 步骤 3 与 spec §5.1/§5.2,`fetch.py`/schema/`scripts/*`/测试一行未动,`video_index.json` 契约不变。
 
 ## Problem Statement

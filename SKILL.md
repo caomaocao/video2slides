@@ -1,9 +1,9 @@
 ---
-name: video2slides
+name: cuepoint
 description: Turn a YouTube/Bilibili/local video into a self-contained video index document (video_index.json + frames/, the outline-transcript-frames mapping), then render it as a frontend-slides HTML deck and/or markdown notes with timestamp links back to the source. Requires ffmpeg + yt-dlp; subtitled videos need no API key. Frame curation and slides want an image-reading (multimodal) host; a text-only host still produces the text index + notes.
 ---
 
-# video2slides(垂直切片版)
+# Cuepoint(垂直切片版)
 
 把视频转为「视频的可导航索引」:transcript → 大纲(带证据引用)→ 定向选帧 → **索引文档(`video_index.json` + `frames/`,一等交付物,公开契约)** → 渲染器族(frontend-slides HTML / markdown 笔记,均为文档的下游视图)。
 本版覆盖:带字幕或无字幕(ASR)的在线视频(YouTube / B 站单 P)与本地视频文件。分析全程零打断,唯一交互点在文档导出后、渲染前。

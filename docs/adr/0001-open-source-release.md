@@ -1,6 +1,6 @@
 # 以 MIT 开源发布,公开镜像走「过滤保史」而非原样推送
 
-**背景**:video2slides 长期只在私有 Codeup 仓开发,现决定以 MIT 协议开源到 GitHub(`caomaocao/video2slides`,public)。私有仓保留为个人权威副本,GitHub 为公开镜像。
+**背景**:Cuepoint 长期只在私有 Codeup 仓开发,现决定以 MIT 协议开源到 GitHub(`caomaocao/cuepoint`,public)。私有仓保留为个人权威副本,GitHub 为公开镜像。
 
 **决定**:
 - **协议**:MIT(`LICENSE`,Copyright (c) 2026 caomaocao)。

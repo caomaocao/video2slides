@@ -1,15 +1,15 @@
-# video2slides
+# Cuepoint
 
-The ubiquitous language for **video2slides** — a portable agent skill that turns a video into a self-contained, replayable video index document and renders it into slides or notes. This file is a glossary only; design rationale lives in `docs/` and ADRs live in `docs/adr/`.
+The ubiquitous language for **Cuepoint** — a portable agent skill that turns a video into a self-contained, replayable video index document and renders it into slides or notes. This file is a glossary only; design rationale lives in `docs/` and ADRs live in `docs/adr/`.
 
 ## Language
 
-**video2slides**:
-The project/skill itself. Lowercase, one word. The public deliverable is the skill, not a service.
-_Avoid_: video-to-slides, Video2Slide, v2s
+**Cuepoint**:
+The project/skill itself. Written **Cuepoint** in prose (proper noun, one word); the repo and skill slug are lowercase `cuepoint`. Formerly named video2slides. The public deliverable is the skill, not a service.
+_Avoid_: Cue Point (two words), CuePoint (camelCase), v2s; the old name video2slides in new prose.
 
 **Agent skill**:
-What video2slides *is* — a set of instructions + deterministic scripts that a host agent invokes (via `SKILL.md` / `AGENTS.md`). It has no standalone entry point of its own; the host agent supplies the semantic judgment.
+What Cuepoint *is* — a set of instructions + deterministic scripts that a host agent invokes (via `SKILL.md` / `AGENTS.md`). It has no standalone entry point of its own; the host agent supplies the semantic judgment.
 _Avoid_: CLI, tool, app, service, library
 
 **Host agent**:

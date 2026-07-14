@@ -1,4 +1,4 @@
-# video2slides — 项目规格说明(Spec v0.5)
+# Cuepoint — 项目规格说明(Spec v0.5)
 
 > 一个 Claude Code skill:输入 YouTube / Bilibili 视频或本地视频文件,产出自包含的**「视频索引文档」**(`video_index.json` + `frames/`,公开契约),并按用户选择渲染为 frontend-slides 风格 HTML 演示文稿、markdown 笔记等下游形态;slide 内嵌视频关键帧与动态片段,可点击跳转回原视频对应时刻。
 >
@@ -26,7 +26,7 @@
 > 5. 中间制品统一存放输出目录 `.work/`,默认保留;断点续跑显式化:各层开始前检测制品存在且新于上游即跳过,`--force` 强制重跑(§2、§3)
 > 6. B 站分 P:处理 URL 指定的单 P(缺省 P1);跳转 URL 格式补 `?p=n&t=`(§2、§9)
 > 7. §14 开放项裁剪:页边界 snap 定软提示 + ±3s 容差、adaptive 参数沿用 crv 默认、帧预算定软上限初始值——从「待定」降级为「初始值,标注视频集仅用于回归调参」(§8、§14)
-> 8. 项目名定稿:video2slides,slash command `/video2slides`(别名 `/v2s`)(§4)
+> 8. 项目名定稿:Cuepoint,slash command `/Cuepoint`(别名 `/v2s`)(§4)
 > 9. 定位与路线定稿:YouTube / Bilibili 双平台对等一等公民,两条 ASR 路径(groq / funasr)均在 MVP 内验证;先自用后发布;实现路径为垂直切片——带字幕的 slide-driven 视频端到端优先(§1、§13)
 > 10. 渲染细节:密度默认 high-density / reading-first;`--clips` 关闭时的 base64 内联作为版式需求传给 frontend-slides,不做渲染后处理(§9)
 > 11. 【实测修订】B 站字幕实为平台 AI 字幕轨(`ai-zh`),**获取必须登录 cookie**,无 cookie 仅弹幕轨可得——「有字幕免配置」对 B 站改为「需 cookie 或回退 ASR」;测试视频集及核实结论见 `docs/test-videos.md`(§1、§10.3、§11、§13)
@@ -139,12 +139,12 @@
 ## 4. Skill 形态与目录结构
 
 - **形态**:Claude Code skill,可发布至 plugin marketplace
-- **命名【v0.4 定稿】**:项目名 **video2slides**,slash command `/video2slides`,别名 `/v2s`(仓库目录随实现统一为复数;【v0.5 确认】定位升格后项目名保留不改,SKILL.md 顶部 description 改为「索引文档 + 渲染器族」表述)
+- **命名【v0.4 定稿】**:项目名 **Cuepoint**,slash command `/Cuepoint`,别名 `/v2s`(仓库目录随实现统一为复数;【v0.5 确认】定位升格后项目名保留不改,SKILL.md 顶部 description 改为「索引文档 + 渲染器族」表述)
 - **前置依赖 skill**:frontend-slides(作为要求安装项,SKILL.md 中声明;slide 渲染阶段读取其 SKILL.md 并按其 fixed-stage 规范生成,不自行内嵌裁剪版)
 - **风险预案**:frontend-slides 版本漂移时以其当前 SKILL.md 为准;我方只传递内容与版式需求(帧卡片、时间戳角标、clip 卡片、base64 内联开关),不硬编码其内部实现
 
 ```
-video2slides/
+cuepoint/
 ├── SKILL.md              # 编排契约:预检 → 取流 → 信号基底 → 分析 → 选帧 → 打包导出 → 渲染(含定稿懒抓);含断点续跑约定
 ├── schemas/
 │   └── video_index.schema.json  # 导出契约的 JSON Schema【v0.5 新增】
@@ -282,7 +282,7 @@ LLM 职责(形态/体裁分类、大纲生成、帧终选、HTML 生成)**写为
 ```json
 {
   "schema_version": "1.0.0",
-  "generator": {"skill": "video2slides", "spec": "v0.5"},
+  "generator": {"skill": "Cuepoint", "spec": "v0.5"},
   "video": {
     "source_url": "…", "platform": "youtube|bilibili|local",
     "title": "…", "uploader": "…", "duration": 1834.0, "language": "zh",
@@ -433,7 +433,7 @@ LLM 职责(形态/体裁分类、大纲生成、帧终选、HTML 生成)**写为
 - 产出 `<OUT>/notes.md`:标题层级映射大纲树、要点 summary、evidence 引用(原文 + 时间戳)、配图(`frames/` 相对路径,代理画质)、时间戳跳转链接(`badge_url_template` 填 `t`;本地文件无 URL,时间戳退化为纯文本标注,形态实现期定,§14)
 - dedup 标注的消费策略自定(默认全收、标注可见——笔记不受「一帧不上两页」的 slide 版面约束)
 - 确定性、可测、可复现、零 token;符合零 pip 依赖政策(§10)
-- **【已知限制,2026-07-13 code-review 发现,记为 P2 不急修】脚手架文案硬编码中文**:notes.py 自写的框架字(`来源`/`时长`/`由 video2slides 渲染`/`时间戳精度`/`45s 块级`/`画面与同组要点共用`/`动态片段`/`回源播放`)写死为中文,而正文(标题/summary/evidence)跟随输出语言。**输出非中文时(英文视频跟随视频语言,或 `--lang` 非中文)notes.md 会中英混排**。实测四例未暴露:三例中文视频一致,#12 英文视频用 `--lang zh` 强制中文正文正好绕开。deck 无此问题(HTML 由宿主自由生成)。修法(P2,约十余行):脚手架抽按 `video.language` 选中/英两套标签、非中英回落英文,notes.py 已可读到该字段,无需新参数。自用中文场景不受影响,故不急
+- **【已知限制,2026-07-13 code-review 发现,记为 P2 不急修】脚手架文案硬编码中文**:notes.py 自写的框架字(`来源`/`时长`/`由 Cuepoint 渲染`/`时间戳精度`/`45s 块级`/`画面与同组要点共用`/`动态片段`/`回源播放`)写死为中文,而正文(标题/summary/evidence)跟随输出语言。**输出非中文时(英文视频跟随视频语言,或 `--lang` 非中文)notes.md 会中英混排**。实测四例未暴露:三例中文视频一致,#12 英文视频用 `--lang zh` 强制中文正文正好绕开。deck 无此问题(HTML 由宿主自由生成)。修法(P2,约十余行):脚手架抽按 `video.language` 选中/英两套标签、非中英回落英文,notes.py 已可读到该字段,无需新参数。自用中文场景不受影响,故不急
 
 ---
 
@@ -544,7 +544,7 @@ LLM 职责(形态/体裁分类、大纲生成、帧终选、HTML 生成)**写为
 - 帧预算:contact sheet 每章 ≤2 张、单视频图片 Read ≤15 次(§8.3)
 - RGB 签名判重通道差:**24**(2026-07-11 于验收视频 #13 标定——深底讲义页下初始值 48 过粗,不同页全部误判重;24 下真翻页 0.12–0.43、同页 build ≤0.04,与占比阈值 0.10 分离良好)
 - 长视频分章阈值:30min(§7)
-- 项目名:video2slides,`/video2slides`(别名 `/v2s`)——已关闭(§4)
+- 项目名:Cuepoint,`/Cuepoint`(别名 `/v2s`)——已关闭(§4)
 
 **仍开放**:
 

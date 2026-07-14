@@ -39,7 +39,7 @@ def _render(doc: dict, base: Path, depth: int) -> list[str]:
     seg_t = {s["id"]: s["t_start"] for s in tr["segments"]}
     lines = [f"# {v['title']}", "",
              f"> 来源:{v['source_url']} · {v.get('uploader') or '未知'} · 时长 {fmt_ts(v['duration'])}",
-             f"> 由 video2slides 索引文档渲染(schema {doc['schema_version']};时间戳精度 {tr['timestamp_granularity']})"]
+             f"> 由 Cuepoint 索引文档渲染(schema {doc['schema_version']};时间戳精度 {tr['timestamp_granularity']})"]
     if tr["timestamp_granularity"] == "chunk-45s":
         lines.append("> 注:时间戳为 45s 块级精度,跳转为近似定位")
     lines.append("")

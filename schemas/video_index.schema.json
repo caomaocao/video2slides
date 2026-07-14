@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "video2slides 视频索引文档(video_index.json)",
+  "title": "Cuepoint 视频索引文档(video_index.json)",
   "description": "导出公开契约(spec v0.5 §6.5):大纲↔transcript↔frames 映射的自包含单文档。版本策略:加字段升次版本,删字段/改语义升主版本;消费方按主版本判兼容。运行期校验为 storyboard.py export 内的 stdlib 手写子集,本文件是规范本体,测试以 jsonschema(仅 dev 依赖)对拍防漂移。",
   "type": "object",
   "required": ["schema_version", "generator", "video", "transcript", "outline"],

@@ -1,6 +1,6 @@
 <div align="center">
 
-# video2slides
+# Cuepoint
 
 **Turn any video into a self-contained, replayable slide deck — every frame and quote deep-linked back to the exact moment in the source.**
 
@@ -18,22 +18,22 @@ English | [中文](./README.zh-CN.md)
 <br/>
 
 <!-- Live demos are hosted on GitHub Pages; the images below link to the interactive decks. -->
-[<img src="./assets/demo-token.png" width="46%" alt="slide-driven lecture deck demo"/>](https://caomaocao.github.io/video2slides/token/)
-[<img src="./assets/demo-nlp.png" width="46%" alt="screen-recording course deck demo"/>](https://caomaocao.github.io/video2slides/nlp/)
-[<img src="./assets/demo-mbs.png" width="46%" alt="architecture documentary deck demo"/>](https://caomaocao.github.io/video2slides/mbs/)
-[<img src="./assets/demo-ferrari.png" width="46%" alt="car review deck demo"/>](https://caomaocao.github.io/video2slides/ferrari/)
+[<img src="./assets/demo-token.png" width="46%" alt="slide-driven lecture deck demo"/>](https://caomaocao.github.io/cuepoint/token/)
+[<img src="./assets/demo-nlp.png" width="46%" alt="screen-recording course deck demo"/>](https://caomaocao.github.io/cuepoint/nlp/)
+[<img src="./assets/demo-mbs.png" width="46%" alt="architecture documentary deck demo"/>](https://caomaocao.github.io/cuepoint/mbs/)
+[<img src="./assets/demo-ferrari.png" width="46%" alt="car review deck demo"/>](https://caomaocao.github.io/cuepoint/ferrari/)
 
-**▶ Live demos**, real decks across four visual forms — [slide-driven lecture](https://caomaocao.github.io/video2slides/token/) · [screen-recording course](https://caomaocao.github.io/video2slides/nlp/) · [architecture documentary](https://caomaocao.github.io/video2slides/mbs/) · [car review](https://caomaocao.github.io/video2slides/ferrari/). Click any timestamp badge to jump into the source video.
+**▶ Live demos**, real decks across four visual forms — [slide-driven lecture](https://caomaocao.github.io/cuepoint/token/) · [screen-recording course](https://caomaocao.github.io/cuepoint/nlp/) · [architecture documentary](https://caomaocao.github.io/cuepoint/mbs/) · [car review](https://caomaocao.github.io/cuepoint/ferrari/). Click any timestamp badge to jump into the source video.
 
 </div>
 
 ---
 
-## Why video2slides
+## Why Cuepoint
 
 A good technical video is dense — a 40-minute lecture is a slide deck, a transcript, and a dozen "look at *this* frame" moments, all trapped in a timeline you have to scrub. Skimming it means dragging the playhead; citing it means screenshotting by hand; turning it into notes means pausing every ten seconds.
 
-**video2slides collapses that into one pass.** Point it at a URL or a file and it produces a deck (or notes) where:
+**Cuepoint collapses that into one pass.** Point it at a URL or a file and it produces a deck (or notes) where:
 
 - every page is a real point the speaker made, backed by a **verbatim quote** from the transcript — no hallucinated summaries;
 - every **frame** is the *right* frame for that point, pulled from the video and de-duplicated, not a random thumbnail;
@@ -123,17 +123,17 @@ python3 scripts/setup.py
 
 ### 2. Install as a skill
 
-video2slides is an **agent skill**, not a standalone CLI — a host agent invokes it. Drop the repo into your agent's skills directory and the skill triggers on its `description`:
+Cuepoint is an **agent skill**, not a standalone CLI — a host agent invokes it. Drop the repo into your agent's skills directory and the skill triggers on its `description`:
 
 - **Claude Code / Desktop** — place the folder in your skills directory.
-- **Codex** — `~/.agents/skills/video2slides/` (or a repo-local `.agents/skills/`).
-- **OpenClaw** — `~/.agents/skills/video2slides/`; `SKILL.md` must be a real copy (the symlink-escape guard rejects links), while `scripts/`/`schemas/`/`assets/` may be symlinked.
+- **Codex** — `~/.agents/skills/cuepoint/` (or a repo-local `.agents/skills/`).
+- **OpenClaw** — `~/.agents/skills/cuepoint/`; `SKILL.md` must be a real copy (the symlink-escape guard rejects links), while `scripts/`/`schemas/`/`assets/` may be symlinked.
 
 Then just ask your agent, e.g. *"turn this video into slides: `<url>`"*.
 
 ### 3. Optional: the slide renderer
 
-The **slide** output is rendered through the separate [`frontend-slides`](https://github.com/zarazhangrui/frontend-slides) skill (a zero-dependency, anti-"AI-slop" 1920×1080 deck generator). Install it if you want decks. **Without it, video2slides still produces the full `video_index.json` + navigable markdown notes** — you just skip the slide view.
+The **slide** output is rendered through the separate [`frontend-slides`](https://github.com/zarazhangrui/frontend-slides) skill (a zero-dependency, anti-"AI-slop" 1920×1080 deck generator). Install it if you want decks. **Without it, Cuepoint still produces the full `video_index.json` + navigable markdown notes** — you just skip the slide view.
 
 ### 4. Optional: an ASR backend (for videos with no subtitles)
 
@@ -166,7 +166,7 @@ The first-class deliverable is **`video_index.json` + `frames/`** — a single J
 
 Everything downstream — slides, notes, or your own tooling — reads only this document. Re-render with a different style, length, or language at **zero re-analysis cost**; the analysis never runs twice.
 
-Full design rationale: [`docs/video2slides-spec-v0.5.md`](./docs/video2slides-spec-v0.5.md).
+Full design rationale: [`docs/cuepoint-spec-v0.5.md`](./docs/cuepoint-spec-v0.5.md).
 
 ## Configuration: ASR backends
 

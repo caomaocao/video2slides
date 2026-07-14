@@ -1,6 +1,6 @@
 <div align="center">
 
-# video2slides
+# Cuepoint
 
 **把任意视频转成自包含、可回放的幻灯片——每一帧、每一句都深链回源视频的那一刻。**
 
@@ -18,22 +18,22 @@
 <br/>
 
 <!-- Live demo 托管在 GitHub Pages;下面的图片链到可交互的成品 deck。 -->
-[<img src="./assets/demo-token.png" width="46%" alt="讲义型 deck 演示"/>](https://caomaocao.github.io/video2slides/token/)
-[<img src="./assets/demo-nlp.png" width="46%" alt="录屏型 deck 演示"/>](https://caomaocao.github.io/video2slides/nlp/)
-[<img src="./assets/demo-mbs.png" width="46%" alt="纪录片 deck 演示"/>](https://caomaocao.github.io/video2slides/mbs/)
-[<img src="./assets/demo-ferrari.png" width="46%" alt="汽车评测 deck 演示"/>](https://caomaocao.github.io/video2slides/ferrari/)
+[<img src="./assets/demo-token.png" width="46%" alt="讲义型 deck 演示"/>](https://caomaocao.github.io/cuepoint/token/)
+[<img src="./assets/demo-nlp.png" width="46%" alt="录屏型 deck 演示"/>](https://caomaocao.github.io/cuepoint/nlp/)
+[<img src="./assets/demo-mbs.png" width="46%" alt="纪录片 deck 演示"/>](https://caomaocao.github.io/cuepoint/mbs/)
+[<img src="./assets/demo-ferrari.png" width="46%" alt="汽车评测 deck 演示"/>](https://caomaocao.github.io/cuepoint/ferrari/)
 
-**▶ 在线演示**,四种视觉形态的真实成品 —— [讲义型课程](https://caomaocao.github.io/video2slides/token/) · [文档录屏课程](https://caomaocao.github.io/video2slides/nlp/) · [建筑纪录片](https://caomaocao.github.io/video2slides/mbs/) · [汽车评测](https://caomaocao.github.io/video2slides/ferrari/)。点任意时间戳角标即可跳进源视频。
+**▶ 在线演示**,四种视觉形态的真实成品 —— [讲义型课程](https://caomaocao.github.io/cuepoint/token/) · [文档录屏课程](https://caomaocao.github.io/cuepoint/nlp/) · [建筑纪录片](https://caomaocao.github.io/cuepoint/mbs/) · [汽车评测](https://caomaocao.github.io/cuepoint/ferrari/)。点任意时间戳角标即可跳进源视频。
 
 </div>
 
 ---
 
-## 为什么需要 video2slides
+## 为什么需要 Cuepoint
 
 一段好的技术视频信息密度很高——一节 40 分钟的课,本身就是一套讲义、一份逐字稿,外加十几个「看**这一帧**」的瞬间,却全被锁在一条得来回拖动的时间轴里。想略读只能拖进度条,想引用只能手动截图,想整理成笔记只能每十秒暂停一次。
 
-**video2slides 把这些压进一趟流程。** 给它一个链接或一个文件,它就产出一份 deck(或笔记),其中:
+**Cuepoint 把这些压进一趟流程。** 给它一个链接或一个文件,它就产出一份 deck(或笔记),其中:
 
 - 每一页都是讲者真正讲到的一个要点,并配一句来自逐字稿的**原文引用**——不编造摘要;
 - 每一**帧**都是该要点**对的那一帧**,从视频里抽出并去重,而非随手一张缩略图;
@@ -123,17 +123,17 @@ python3 scripts/setup.py
 
 ### 2. 作为技能安装
 
-video2slides 是一个**智能体技能**,不是独立 CLI——由宿主智能体调用。把仓库放进你的智能体技能目录,技能会按 `description` 自动触发:
+Cuepoint 是一个**智能体技能**,不是独立 CLI——由宿主智能体调用。把仓库放进你的智能体技能目录,技能会按 `description` 自动触发:
 
 - **Claude Code / Desktop** —— 放进你的技能目录即可。
-- **Codex** —— `~/.agents/skills/video2slides/`(或仓库内 `.agents/skills/`)。
-- **OpenClaw** —— `~/.agents/skills/video2slides/`;`SKILL.md` 必须实体拷贝(软链逃逸守卫会拒绝软链),`scripts/`/`schemas/`/`assets/` 可软链。
+- **Codex** —— `~/.agents/skills/cuepoint/`(或仓库内 `.agents/skills/`)。
+- **OpenClaw** —— `~/.agents/skills/cuepoint/`;`SKILL.md` 必须实体拷贝(软链逃逸守卫会拒绝软链),`scripts/`/`schemas/`/`assets/` 可软链。
 
 然后直接对你的智能体说,例如:*「把这个视频转成幻灯片:`<url>`」*。
 
 ### 3. 可选:幻灯片渲染器
 
-**幻灯片**输出经独立的 [`frontend-slides`](https://github.com/zarazhangrui/frontend-slides) 技能渲染(零依赖、反「AI 味」的 1920×1080 deck 生成器)。想要 deck 就装它。**不装它,video2slides 依然产出完整的 `video_index.json` + 可导航 markdown 笔记**——只是没有幻灯片视图而已。
+**幻灯片**输出经独立的 [`frontend-slides`](https://github.com/zarazhangrui/frontend-slides) 技能渲染(零依赖、反「AI 味」的 1920×1080 deck 生成器)。想要 deck 就装它。**不装它,Cuepoint 依然产出完整的 `video_index.json` + 可导航 markdown 笔记**——只是没有幻灯片视图而已。
 
 ### 4. 可选:ASR 后端(用于无字幕视频)
 
@@ -166,7 +166,7 @@ ASR_BACKEND=funasr          # 纯本地、免 key;或:groq | openai | api | mimo
 
 下游一切——幻灯片、笔记,或你自己的工具——都只读这份文档。换风格、换篇幅、换语言重渲染都是**零重跑分析**的成本;分析永不跑第二遍。
 
-完整设计原理见 [`docs/video2slides-spec-v0.5.md`](./docs/video2slides-spec-v0.5.md)。
+完整设计原理见 [`docs/cuepoint-spec-v0.5.md`](./docs/cuepoint-spec-v0.5.md)。
 
 ## 配置:ASR 后端
 

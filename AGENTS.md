@@ -5,11 +5,11 @@
 ## 先读这两份
 
 1. **`CLAUDE.md`** —— 本仓库对代理的完整工作指令(项目状态、目标架构、依赖政策、非目标)。开工前必读。
-2. **`docs/video2slides-spec-v0.5.md`** —— 设计的 source of truth(中文;v0.4/v0.3 是历史快照,勿改)。做任何架构判断前读它。
+2. **`docs/cuepoint-spec-v0.5.md`** —— 设计的 source of truth(中文;v0.4/v0.3 是历史快照,勿改)。做任何架构判断前读它。
 
 ## 项目一句话
 
-**video2slides**:把视频(YouTube / Bilibili / 本地文件)转成自包含的**视频索引文档**(`video_index.json` + `frames/`,公开契约),再按选择渲染为 `frontend-slides` 风格 HTML 讲义或 markdown 笔记,关键帧/时间戳可跳回源视频对应时刻。核心不变式:**转写 → 大纲(内容键)→ 关联帧(按节点定向选帧)→ 索引文档 → 渲染器族(幻灯片/笔记)**。
+**Cuepoint**:把视频(YouTube / Bilibili / 本地文件)转成自包含的**视频索引文档**(`video_index.json` + `frames/`,公开契约),再按选择渲染为 `frontend-slides` 风格 HTML 讲义或 markdown 笔记,关键帧/时间戳可跳回源视频对应时刻。核心不变式:**转写 → 大纲(内容键)→ 关联帧(按节点定向选帧)→ 索引文档 → 渲染器族(幻灯片/笔记)**。
 
 ## 红线(任何代理都不得违反)
 

@@ -4,8 +4,8 @@
 
 ## 权威顺序
 
-- **`video2slides-spec-v0.5.md`** —— 设计 source of truth(2026-07-13「制品升格」决议版,reviewed)。做架构判断以它为准。
-- **`video2slides-spec-v0.4.md`** / **`video2slides-spec-v0.3.md`** —— 历史快照,**只读勿改**,保留用于追溯。
+- **`cuepoint-spec-v0.5.md`** —— 设计 source of truth(2026-07-13「制品升格」决议版,reviewed)。做架构判断以它为准。
+- **`cuepoint-spec-v0.4.md`** / **`cuepoint-spec-v0.3.md`** —— 历史快照,**只读勿改**,保留用于追溯。
 - **`test-videos.md`** —— 27 个已核实测试源 + 全部试产发现的登记册。新发现**追加**,不删旧结论;矩阵按 ASR 分家实跑标注。
 
 ## 子目录

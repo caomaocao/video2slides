@@ -324,7 +324,7 @@ def export_index(work: Path | str, force: bool = False) -> int:
     errors: list[str] = []
     stats: dict[str, int] = {}
     doc = {"schema_version": SCHEMA_VERSION,
-           "generator": {"skill": "video2slides", "spec": "v0.5"},
+           "generator": {"skill": "cuepoint", "spec": "v0.5"},
            "video": _export_video_block(sb.get("video"), meta),
            "transcript": {"source": transcript.get("source") or "",
                           "timestamp_granularity": _granularity(transcript.get("source") or ""),
