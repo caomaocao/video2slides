@@ -18,10 +18,12 @@ English | [中文](./README.zh-CN.md)
 <br/>
 
 <!-- Live demos are hosted on GitHub Pages; the images below link to the interactive decks. -->
-[<img src="./assets/demo-token.png" width="46%" alt="slide-driven deck demo"/>](https://caomaocao.github.io/video2slides/token/)
-[<img src="./assets/demo-nlp.png" width="46%" alt="screen-recording deck demo"/>](https://caomaocao.github.io/video2slides/nlp/)
+[<img src="./assets/demo-token.png" width="46%" alt="slide-driven lecture deck demo"/>](https://caomaocao.github.io/video2slides/token/)
+[<img src="./assets/demo-nlp.png" width="46%" alt="screen-recording course deck demo"/>](https://caomaocao.github.io/video2slides/nlp/)
+[<img src="./assets/demo-mbs.png" width="46%" alt="architecture documentary deck demo"/>](https://caomaocao.github.io/video2slides/mbs/)
+[<img src="./assets/demo-ferrari.png" width="46%" alt="car review deck demo"/>](https://caomaocao.github.io/video2slides/ferrari/)
 
-**▶ Live demos:** [slide-driven lecture](https://caomaocao.github.io/video2slides/token/) · [screen-recording course](https://caomaocao.github.io/video2slides/nlp/) — real decks; click any timestamp badge to jump into the source video.
+**▶ Live demos**, real decks across four visual forms — [slide-driven lecture](https://caomaocao.github.io/video2slides/token/) · [screen-recording course](https://caomaocao.github.io/video2slides/nlp/) · [architecture documentary](https://caomaocao.github.io/video2slides/mbs/) · [car review](https://caomaocao.github.io/video2slides/ferrari/). Click any timestamp badge to jump into the source video.
 
 </div>
 

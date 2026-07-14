@@ -20,8 +20,10 @@
 <!-- Live demo 托管在 GitHub Pages;下面的图片链到可交互的成品 deck。 -->
 [<img src="./assets/demo-token.png" width="46%" alt="讲义型 deck 演示"/>](https://caomaocao.github.io/video2slides/token/)
 [<img src="./assets/demo-nlp.png" width="46%" alt="录屏型 deck 演示"/>](https://caomaocao.github.io/video2slides/nlp/)
+[<img src="./assets/demo-mbs.png" width="46%" alt="纪录片 deck 演示"/>](https://caomaocao.github.io/video2slides/mbs/)
+[<img src="./assets/demo-ferrari.png" width="46%" alt="汽车评测 deck 演示"/>](https://caomaocao.github.io/video2slides/ferrari/)
 
-**▶ 在线演示:** [讲义型课程](https://caomaocao.github.io/video2slides/token/) · [文档录屏课程](https://caomaocao.github.io/video2slides/nlp/) —— 真实成品,点任意时间戳角标即可跳进源视频。
+**▶ 在线演示**,四种视觉形态的真实成品 —— [讲义型课程](https://caomaocao.github.io/video2slides/token/) · [文档录屏课程](https://caomaocao.github.io/video2slides/nlp/) · [建筑纪录片](https://caomaocao.github.io/video2slides/mbs/) · [汽车评测](https://caomaocao.github.io/video2slides/ferrari/)。点任意时间戳角标即可跳进源视频。
 
 </div>
 
