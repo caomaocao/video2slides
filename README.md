@@ -2,7 +2,7 @@
 
 # Cuepoint
 
-**Turn any video into a self-contained, replayable slide deck — every frame and quote deep-linked back to the exact moment in the source.**
+**Turn any video into a self-contained, replayable slide deck — every frame and quote deep-linked back to the most relevant moment in the source.**
 
 A portable **agent skill** (Claude Code & other agent runtimes) that *watches the video for you*: it transcribes, outlines with cited evidence, curates the key frames, and renders a slide deck or navigable notes you can click straight back into the video.
 
