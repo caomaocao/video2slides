@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>法拉利 LUCE 纯电评测 —— 视频导航索引</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ===========================================
+   FIXED 16:9 STAGE: MANDATORY BASE STYLES
+   Slides are authored at 1920x1080 and scaled as a whole.
+   =========================================== */
+html, body {
+    width: 100%; height: 100%; margin: 0; overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+.deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-stage {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px;
+    overflow: hidden; transform-origin: 0 0; background: var(--slide-bg, #fff);
+}
+.slide {
+    position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden;
+    display: block; visibility: hidden; opacity: 0; pointer-events: none;
+    background: var(--slide-bg, #fff);
+}
+.slide.active, .slide.visible { visibility: visible; opacity: 1; pointer-events: auto; z-index: 1; }
+img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+.deck-controls { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 1000; }
+@media print {
+    html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+    .deck-viewport { position: static; overflow: visible; background: #fff; }
+    .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+    .slide {
+        position: relative; display: block !important; visibility: visible !important;
+        opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px;
+        break-after: page; page-break-after: always;
+    }
+    .slide:last-child { break-after: auto; page-break-after: auto; }
+    .deck-controls { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; }
+}
+
+/* ===========================================
+   ELECTRIC STUDIO -- 汽车评测特化设计系统
+   Manrope 800 展示体 + Space Mono 技术标注体
+   深色主场景 + 电光蓝(#4361ee)分隔与角标 + 白色高光文本
+   =========================================== */
+:root {
+    --bg-dark: #0a0a0a;
+    --bg-panel: #0e1016;
+    --bg-white: #ffffff;
+    --accent-blue: #4361ee;
+    --accent-blue-soft: rgba(67, 97, 238, 0.35);
+    --text-dark: #0a0a0a;
+    --text-light: #ffffff;
+    --text-muted: rgba(255, 255, 255, 0.56);
+    --font-display: 'Manrope', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-mono: 'Space Mono', 'SFMono-Regular', monospace;
+    --stage-bg: #050608;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+.slide {
+    font-family: var(--font-display);
+    color: var(--text-light);
+    background: var(--bg-dark);
+}
+
+/* 舞台底纹:细碳纤维斜纹 + 左上角电光蓝辉光,营造纵深而非纯色平板 */
+.slide::before {
+    content: '';
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+        radial-gradient(ellipse 900px 700px at -6% -10%, var(--accent-blue-soft), transparent 60%),
+        repeating-linear-gradient(135deg, rgba(255,255,255,0.018) 0 2px, transparent 2px 6px);
+    z-index: 0;
+}
+
+.marknum {
+    position: absolute; right: 64px; bottom: 40px;
+    font-family: var(--font-mono); font-size: 20px; letter-spacing: .12em;
+    color: rgba(255,255,255,0.22); z-index: 2;
+}
+.pageno {
+    position: absolute; left: 64px; top: 46px;
+    font-family: var(--font-mono); font-weight: 700; font-size: 18px;
+    letter-spacing: .1em; color: rgba(255,255,255,0.4); z-index: 2;
+}
+
+/* === 内容页:左侧信息面板(深)+ 右侧图像面板,接缝处电光蓝竖条 === */
+.content {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: 758px 1162px;
+    height: 100%;
+}
+.textcol {
+    position: relative;
+    padding: 150px 72px 90px 64px;
+    background: var(--bg-panel);
+    display: flex; flex-direction: column; justify-content: center;
+}
+.textcol::after {
+    content: '';
+    position: absolute; top: 0; right: 0; bottom: 0; width: 6px;
+    background: var(--accent-blue);
+    box-shadow: 0 0 28px 2px var(--accent-blue-soft);
+}
+.eyebrow {
+    font-family: var(--font-mono); font-weight: 700; font-size: 19px;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--accent-blue);
+    margin: 0 0 26px; display: flex; align-items: center; gap: 14px;
+}
+.eyebrow .idx {
+    background: var(--accent-blue); color: #fff; padding: 4px 10px;
+    font-size: 16px; letter-spacing: .04em;
+}
+.textcol h2 {
+    font-weight: 800; font-size: 58px; line-height: 1.16; letter-spacing: -.01em;
+    margin: 0 0 30px; max-width: 620px;
+}
+.rule { width: 88px; height: 6px; background: var(--accent-blue); margin: 0 0 34px; }
+.summary {
+    font-weight: 400; font-size: 25px; line-height: 1.72; color: rgba(255,255,255,0.86);
+    margin: 0 0 40px; max-width: 610px;
+}
+.quote {
+    font-family: var(--font-display); font-weight: 700; font-style: normal;
+    font-size: 27px; line-height: 1.5; color: var(--text-light);
+    border-left: 4px solid var(--accent-blue); padding: 4px 0 4px 24px;
+    max-width: 590px;
+}
+.quote::before { content: '\201C'; color: var(--accent-blue); font-size: 40px; line-height: 0; position: relative; top: 12px; margin-right: 2px; }
+
+/* === 右侧图像面板 === */
+.mediacol {
+    position: relative; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    background: #000;
+    overflow: hidden;
+}
+.framecard { position: relative; width: 100%; height: 100%; margin: 0; }
+.framecard img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(1.04) contrast(1.03); }
+.framecard::after {
+    /* 底部渐暗,托住时间戳角标 */
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 220px;
+    background: linear-gradient(to top, rgba(0,0,0,0.65), transparent);
+    pointer-events: none;
+}
+.badge {
+    position: absolute; right: 40px; bottom: 40px; z-index: 3;
+    font-family: var(--font-mono); font-weight: 700; font-size: 27px; letter-spacing: .05em;
+    background: var(--accent-blue); color: #fff; text-decoration: none;
+    padding: 13px 26px; border-radius: 2px;
+    box-shadow: 0 10px 26px rgba(67, 97, 238, 0.45);
+    transition: background .18s ease, transform .18s ease;
+}
+.badge:hover { background: #5b76ff; transform: translateY(-2px); }
+.badge::before { content: '\25B6  '; font-size: 15px; }
+.badge::after { content: '  \2197'; font-size: 19px; }
+.badge.limited::before { content: '\26A0  '; }
+
+/* 代理画质兜底标注:仅当 finalize 两次取直链均失败、media 回退代理帧时渲染 */
+.qlimited-tag {
+    position: absolute; left: 40px; bottom: 40px; z-index: 3;
+    font-family: var(--font-mono); font-size: 16px; letter-spacing: .08em;
+    background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.35);
+    color: #fff; padding: 8px 14px;
+}
+
+/* 双图(A.1):上下两张各占一半高度,中缝细分隔线 */
+.mediacol.dual { flex-direction: column; }
+.framecard.half { height: 50%; }
+.framecard.half:first-child { border-bottom: 3px solid var(--accent-blue); }
+
+/* === 封面 / 结尾:全幅深色场景 === */
+.cover {
+    position: relative; z-index: 1;
+    height: 100%; padding: 130px 140px; box-sizing: border-box;
+    display: flex; flex-direction: column; justify-content: center;
+}
+.cover .corner-mark {
+    position: absolute; right: 64px; top: 46px;
+    font-family: var(--font-mono); font-size: 18px; letter-spacing: .1em;
+    color: rgba(255,255,255,0.3);
+}
+.cover .kicker {
+    font-family: var(--font-mono); font-weight: 700; font-size: 22px;
+    letter-spacing: .22em; text-transform: uppercase; color: var(--accent-blue);
+    margin-bottom: 40px;
+}
+.cover h1 {
+    font-weight: 800; font-size: 108px; line-height: 1.08; letter-spacing: -.015em;
+    max-width: 1500px; margin-bottom: 44px;
+}
+.cover .sub {
+    font-size: 32px; line-height: 1.65; color: rgba(255,255,255,0.72);
+    max-width: 1180px; margin-bottom: 64px; font-weight: 400;
+}
+.specstrip { display: flex; gap: 64px; margin-top: auto; flex-wrap: wrap; }
+.spec { display: flex; flex-direction: column; gap: 10px; }
+.spec .k {
+    font-family: var(--font-mono); font-size: 16px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--accent-blue);
+}
+.spec .v { font-family: var(--font-mono); font-size: 22px; color: rgba(255,255,255,0.85); }
+.plainlink { color: rgba(255,255,255,0.85); text-decoration: none; border-bottom: 1px solid var(--accent-blue); }
+.plainlink:hover { color: #fff; }
+
+/* 封面装饰:右侧竖排电光蓝色块条,呼应品牌角标元素 */
+.cover::after {
+    content: '';
+    position: absolute; right: 0; top: 0; bottom: 0; width: 14px;
+    background: repeating-linear-gradient(
+        to bottom, var(--accent-blue) 0 64px, transparent 64px 96px
+    );
+    opacity: .85;
+}
+
+/* === 翻页控件 chrome(舞台外)=== */
+.deck-controls {
+    font-family: var(--font-mono); font-weight: 700; font-size: 14px;
+    color: rgba(255,255,255,.82); background: rgba(10,10,10,.6);
+    border: 1px solid rgba(67,97,238,.4);
+    padding: 9px 20px; border-radius: 22px; letter-spacing: .06em;
+}
+
+/* === 入场动效:一次性 staggered reveal,尊重 reduced-motion === */
+.reveal { opacity: 0; transform: translateY(22px); transition: opacity .6s cubic-bezier(.16,1,.3,1), transform .6s cubic-bezier(.16,1,.3,1); }
+.slide.visible .reveal { opacity: 1; transform: translateY(0); }
+.textcol h2.reveal { transition-delay: .05s; }
+.rule.reveal { transition-delay: .15s; }
+.summary.reveal { transition-delay: .22s; }
+.quote.reveal { transition-delay: .32s; }
+
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+<div class="deck-stage" id="stage">
+
+<section class="slide active">
+  <div class="cover">
+    <div class="corner-mark">N&deg;01</div>
+    <p class="kicker">视频导航索引 &middot; 高转青年-栗子</p>
+    <h1>法拉利 LUCE<br>纯电评测全解析</h1>
+    <p class="sub">从外观比例、三电与悬架,到座舱仪表与驾驶哲学 &mdash; 每页关键帧均可点击跳回原视频对应时刻</p>
+    <div class="specstrip">
+      <div class="spec"><span class="k">来源</span><span class="v">哔哩哔哩 &middot; 12:47</span></div>
+      <div class="spec"><span class="k">结构</span><span class="v">8 章 &middot; 15 要点</span></div>
+      <div class="spec"><span class="k">形态</span><span class="v">实拍 / 谈话 + 产品运镜</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ A.1 ============ -->
+<section class="slide">
+  <div class="pageno">01 / 15</div>
+  <div class="marknum">N&deg;01</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">A.1</span>开场:法拉利首款纯电动车 LUCE 登场</p>
+      <h2 class="reveal">“看不出是法拉利”的挑战性设计</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">主持人开场设问:遮住车标还能否认出这是法拉利。首款纯电超跑品牌车型,比4年前的普罗桑发布更具冲击力,车身比例也刻意区别于以往车型。</p>
+      <blockquote class="quote reveal">你还能看得出来这是一台法拉利吗</blockquote>
+    </div>
+      <div class="mediacol dual">
+        <figure class="framecard half">
+          <img src="assets/final_A.1_9.9.jpg" alt="“看不出是法拉利”的挑战性设计">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=10" target="_blank" rel="noopener">00:10</a>
+        </figure>
+        <figure class="framecard half">
+          <img src="assets/final_A.1_7.5.jpg" alt="“看不出是法拉利”的挑战性设计">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=7" target="_blank" rel="noopener">00:07</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ A.2 ============ -->
+<section class="slide">
+  <div class="pageno">02 / 15</div>
+  <div class="marknum">N&deg;02</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">A.2</span>开场:法拉利首款纯电动车 LUCE 登场</p>
+      <h2 class="reveal">LUCE 命名寓意与 LoveFrom 操刀设计</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">LUCE 在意大利语中意为“光”,呼应“跃马之光”;整车设计由乔尼·艾维(Jony Ive)创立的 LoveFrom 主导,内饰曝光时被评价为“苹果汽车在马拉内罗被实现了”。</p>
+      <blockquote class="quote reveal">live fron的创始人JONYIVE是苹果前首席设计师</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_A.2_41.4.jpg" alt="LUCE 命名寓意与 LoveFrom 操刀设计">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=41" target="_blank" rel="noopener">00:41</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ B ============ -->
+<section class="slide">
+  <div class="pageno">03 / 15</div>
+  <div class="marknum">N&deg;03</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">B</span>外观设计:短轴距与航空器美学</p>
+      <h2 class="reveal">外观设计:短轴距与航空器美学</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">不同于新势力追求的长轴距经典比例,LUCE 反其道采用短前轴到踏板距离,灵感来自中后置超跑座舱前移设计;车身线条追求泪滴状流线造型与法拉利历史最佳风阻系数。</p>
+      <blockquote class="quote reveal">法拉利他居然做了一台短L113的电动车</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_B_77.6.jpg" alt="外观设计:短轴距与航空器美学">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=78" target="_blank" rel="noopener">01:18</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ C.1 ============ -->
+<section class="slide">
+  <div class="pageno">04 / 15</div>
+  <div class="marknum">N&deg;04</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">C.1</span>轮圈、轮胎与刹车系统</p>
+      <h2 class="reveal">23/24 寸轮圈与胎宽取舍</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">前轮23寸、后轮24寸,尺寸夸张但宽度克制(前265/后315),兼顾电动车续航需求;主持人认为更复古的轮圈样式会与车身风格更协调。</p>
+      <blockquote class="quote reveal">前轮给到了23寸</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_C.1_141.3.jpg" alt="23/24 寸轮圈与胎宽取舍">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=141" target="_blank" rel="noopener">02:21</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ C.2 ============ -->
+<section class="slide">
+  <div class="pageno">05 / 15</div>
+  <div class="marknum">N&deg;05</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">C.2</span>轮圈、轮胎与刹车系统</p>
+      <h2 class="reveal">碳陶刹车与500kW动能回收</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">标配CCM碳陶瓷刹车盘,前390mm/后372mm,尺寸小于普罗桑;最大可提供500千瓦动能回收,产生0.68G减速度,理论上降低对物理刹车系统的依赖。</p>
+      <blockquote class="quote reveal">LUCHA最大能够提供500千瓦的动能回收</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_C.2_174.4.jpg" alt="碳陶刹车与500kW动能回收">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=174" target="_blank" rel="noopener">02:54</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ D.1 ============ -->
+<section class="slide">
+  <div class="pageno">06 / 15</div>
+  <div class="marknum">N&deg;06</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">D.1</span>三电系统与操控:四电机、后轮转向</p>
+      <h2 class="reveal">2260kg 整备质量与轻量化设计</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">整备质量2260kg,数字不小,但对于四轮独立电机、四轮全主动悬架、122度电池的纯电动车而言已属轻量化优秀;车身底盘70%采用再生铝材料。</p>
+      <blockquote class="quote reveal">它的整备质量是2260kg</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_D.1_221.8.jpg" alt="2260kg 整备质量与轻量化设计">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=222" target="_blank" rel="noopener">03:42</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ D.2 ============ -->
+<section class="slide">
+  <div class="pageno">07 / 15</div>
+  <div class="marknum">N&deg;07</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">D.2</span>三电系统与操控:四电机、后轮转向</p>
+      <h2 class="reveal">四电机1050马力与零百2.5秒</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">前轴两颗电机(来自F80)、后轴两颗电机,综合输出772千瓦/峰值1050马力,轮端扭矩达11050牛米;零百加速2.5秒,零到200为6.8秒,极速310km/h。</p>
+      <blockquote class="quote reveal">所以这辆车的零百是2.5秒</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_D.2_270.7.jpg" alt="四电机1050马力与零百2.5秒">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=271" target="_blank" rel="noopener">04:31</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ D.3 ============ -->
+<section class="slide">
+  <div class="pageno">08 / 15</div>
+  <div class="marknum">N&deg;08</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">D.3</span>三电系统与操控:四电机、后轮转向</p>
+      <h2 class="reveal">独立可调的后轮转向</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">后轮转向数值不算激进,但妙处在于左右轮可独立调节角度——可同转、差量转,甚至内八或外八,分别优化过弯与直线加速的稳定性。</p>
+      <blockquote class="quote reveal">但它的妙就妙在它左右轮是可以单独调节的</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_D.3_319.9.jpg" alt="独立可调的后轮转向">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=320" target="_blank" rel="noopener">05:20</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ E ============ -->
+<section class="slide">
+  <div class="pageno">09 / 15</div>
+  <div class="marknum">N&deg;09</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">E</span>Multimatic 48V 主动悬架</p>
+      <h2 class="reveal">Multimatic 48V 主动悬架</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">由加拿大赛车工程公司 Multimatic 定制的48伏主动式悬架,是继普罗桑、F80之后第三代应用;液冷电机结合滚珠丝杠可直接为悬架注入能量,配合柔性后副车架,让整车体感重量减少400kg。</p>
+      <blockquote class="quote reveal">来自moi magic给他们定制的48伏主动式悬架</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_E_350.1.jpg" alt="Multimatic 48V 主动悬架">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=350" target="_blank" rel="noopener">05:50</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ F.1 ============ -->
+<section class="slide">
+  <div class="pageno">10 / 15</div>
+  <div class="marknum">N&deg;10</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">F.1</span>座舱内饰体验</p>
+      <h2 class="reveal">电子墨水钥匙与再生铝方向盘</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">车钥匙背面控制解锁与后备厢,插入后正面电子墨水屏图案会渐隐并转移到换挡杆位置提示启动;方向盘中央铝材采用再生铝阳极氧化工艺,手感细腻。</p>
+      <blockquote class="quote reveal">但它其实是一个电子墨水瓶</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_F.1_433.4.jpg" alt="电子墨水钥匙与再生铝方向盘">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=433" target="_blank" rel="noopener">07:13</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ F.2 ============ -->
+<section class="slide">
+  <div class="pageno">11 / 15</div>
+  <div class="marknum">N&deg;11</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">F.2</span>座舱内饰体验</p>
+      <h2 class="reveal">声音细节与玻璃再生铝材质</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">拨片、空调旋钮、门窗按钮、出风口等多处均有独特声音设计;车内大量使用玻璃与再生铝材质,质感堪比车规级iPhone和MacBook。</p>
+      <blockquote class="quote reveal">简直就是车规级的IPHONE和MACBOOK的感觉</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_F.2_496.2.jpg" alt="声音细节与玻璃再生铝材质">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=496" target="_blank" rel="noopener">08:16</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ G ============ -->
+<section class="slide">
+  <div class="pageno">12 / 15</div>
+  <div class="marknum">N&deg;12</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">G</span>仪表与驾驶模式界面</p>
+      <h2 class="reveal">仪表与驾驶模式界面</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">仪表表面为LED屏幕显示挡位、驾驶模式与悬架模式,底部三个孔位由OLED显示配合一根机械指针构成,视觉精致;表盘内藏有专利机芯,整车累计超60项专利,并可切换弹射起步激活界面。</p>
+      <blockquote class="quote reveal">所以它是由两块OLED跟一个机械指针来组成的</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_G_554.8.jpg" alt="仪表与驾驶模式界面">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=555" target="_blank" rel="noopener">09:15</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ H.1 ============ -->
+<section class="slide">
+  <div class="pageno">13 / 15</div>
+  <div class="marknum">N&deg;13</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">H.1</span>驾驶控制与声音哲学</p>
+      <h2 class="reveal">可单独调节的悬架阻尼按钮</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">驾驶位左右两个 Manettino 按钮分别控制动力与车辆动态,新增独立的避震器按钮——这是首款能单独调节悬架阻尼的法拉利车型,普罗桑与F80均未做到。</p>
+      <blockquote class="quote reveal">这应该是第一辆能够单独去调节悬架阻尼的</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_H.1_624.9.jpg" alt="可单独调节的悬架阻尼按钮">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=625" target="_blank" rel="noopener">10:25</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ H.2 ============ -->
+<section class="slide">
+  <div class="pageno">14 / 15</div>
+  <div class="marknum">N&deg;14</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">H.2</span>驾驶控制与声音哲学</p>
+      <h2 class="reveal">拨片控制扭矩释放曲线而非换挡</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">电动车没有传统换挡逻辑,拨片改为调节加速与减速扭矩释放的五档强度,让起步不过猛、后段仍能持续加速,呈现更从容的体感加速过程。</p>
+      <blockquote class="quote reveal">你可以通过这个拨片来控制</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_H.2_656.2.jpg" alt="拨片控制扭矩释放曲线而非换挡">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=656" target="_blank" rel="noopener">10:56</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<!-- ============ H.3 ============ -->
+<section class="slide">
+  <div class="pageno">15 / 15</div>
+  <div class="marknum">N&deg;15</div>
+  <div class="content">
+    <div class="textcol">
+      <p class="eyebrow"><span class="idx">H.3</span>驾驶控制与声音哲学</p>
+      <h2 class="reveal">拒绝模拟声浪:传递真实机械震动</h2>
+      <div class="rule reveal"></div>
+      <p class="summary reveal">法拉利没有为LUCE模拟V6/V8/V12声浪,而是在前轴中间安装采集器,拾取机械震动的真实声音并放大传入车内,营造类似电吉他的听感。</p>
+      <blockquote class="quote reveal">而是把这些机械在震动时候的真实的声音</blockquote>
+    </div>
+      <div class="mediacol">
+        <figure class="framecard">
+          <img src="assets/final_H.3_716.1.jpg" alt="拒绝模拟声浪:传递真实机械震动">
+          
+          <a class="badge" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1&amp;t=716" target="_blank" rel="noopener">11:56</a>
+        </figure>
+      </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="cover">
+    <div class="corner-mark">N&deg;17</div>
+    <p class="kicker">一句话带走</p>
+    <h1>短轴距的电动超跑,<br>把法拉利的"手感"焊进了三电里</h1>
+    <p class="sub">四电机 1050 马力、Multimatic 48V 主动悬架、独立后轮转向,再加上放弃模拟声浪的真实机械声 &mdash;
+    LUCE 用工程细节回答了"电动法拉利该是什么样"。</p>
+    <div class="specstrip">
+      <div class="spec"><span class="k">原视频</span><span class="v"><a class="plainlink" href="https://www.bilibili.com/video/BV1zgVA6gE3x?p=1" target="_blank" rel="noopener">bilibili.com/video/BV1zgVA6gE3x</a></span></div>
+      <div class="spec"><span class="k">UP 主</span><span class="v">高转青年-栗子</span></div>
+    </div>
+  </div>
+</section>
+</div>
+</div>
+<div class="deck-controls">&larr; &rarr; 翻页 &middot; 点击时间戳角标跳回原视频</div>
+
+<script>
+// === 舞台等比缩放(1920x1080 整体 scale,不重排)===
+const stage = document.getElementById('stage');
+function fit() {
+    const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    const x = (window.innerWidth - 1920 * s) / 2;
+    const y = (window.innerHeight - 1080 * s) / 2;
+    stage.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+}
+window.addEventListener('resize', fit);
+fit();
+
+// === 翻页与键盘 / 触摸 / 滚轮导航 ===
+const slides = Array.from(document.querySelectorAll('.slide'));
+let cur = 0;
+function go(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((sl, j) => {
+        sl.classList.toggle('active', j === cur);
+        sl.classList.toggle('visible', j === cur);
+    });
+}
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(cur + 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(cur - 1);
+    if (e.key === 'Home') go(0);
+    if (e.key === 'End') go(slides.length - 1);
+});
+document.addEventListener('click', (e) => {
+    if (e.target.closest('a')) return;          // 角标 / 链接不触发翻页
+    go(cur + (e.clientX > window.innerWidth / 2 ? 1 : -1));
+});
+let touchX = null;
+window.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, {passive:true});
+window.addEventListener('touchend', (e) => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) go(cur + (dx < 0 ? 1 : -1));
+    touchX = null;
+}, {passive:true});
+window.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaY) < 30) return;
+    go(cur + (e.deltaY > 0 ? 1 : -1));
+}, {passive:true});
+go(0);
+</script>
+</body>
+</html>

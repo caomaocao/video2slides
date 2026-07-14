@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新加坡滨海湾金沙扩建工程即将完工 - The B1M —— 视频导航索引</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,700;0,900;1,500;1,600&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ===========================================
+   FIXED 16:9 STAGE: MANDATORY BASE STYLES
+   =========================================== */
+html, body {
+    width: 100%; height: 100%; margin: 0; overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+.deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-stage {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px;
+    overflow: hidden; transform-origin: 0 0; background: var(--slide-bg, #fff);
+}
+.slide {
+    position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden;
+    display: block; visibility: hidden; opacity: 0; pointer-events: none;
+    background: var(--slide-bg, #fff);
+}
+.slide.active, .slide.visible {
+    visibility: visible; opacity: 1; pointer-events: auto; z-index: 1;
+}
+img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+.deck-controls { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 1000; }
+@media print {
+    html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+    .deck-viewport { position: static; overflow: visible; background: #fff; }
+    .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+    .slide {
+        position: relative; display: block !important; visibility: visible !important;
+        opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px;
+        break-after: page; page-break-after: always;
+    }
+    .slide:last-child { break-after: auto; page-break-after: auto; }
+    .deck-controls { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; }
+}
+
+/* === VINTAGE EDITORIAL 设计系统(视频导航索引特化) === */
+:root {
+    --stage-bg: #262220;
+    --slide-bg: #f5f3ee;
+    --ink: #1a1a1a;
+    --muted: #5c5650;
+    --warm: #e8d4c0;
+    --rust: #a8481f;
+    --rust-deep: #7c3316;
+    --hair: rgba(26,26,26,.14);
+}
+
+.slide {
+    font-family: 'Work Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: var(--ink);
+}
+
+/* 通用几何签名标记:圆环 + 短线 + 实心点 */
+.geo-mark {
+    position: absolute; left: 70px; top: 56px;
+    display: flex; align-items: center; gap: 14px; z-index: 2;
+}
+.geo-mark .circle { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--rust); box-sizing: border-box; }
+.geo-mark .line { width: 44px; height: 2px; background: var(--ink); opacity: .55; }
+.geo-mark .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--rust); }
+
+.eyebrow {
+    font-family: 'Work Sans', sans-serif; font-weight: 600; font-size: 20px;
+    letter-spacing: .16em; color: var(--rust); text-transform: uppercase; margin: 0 0 22px;
+}
+.eyebrow .idx { color: var(--ink); opacity: .38; margin-right: 14px; }
+
+/* === 要点页:编辑部跨页版式(左文右图) === */
+.point {
+    display: grid; grid-template-columns: 700px 1006px; gap: 68px;
+    padding: 128px 96px 96px 96px; box-sizing: border-box; height: 100%; align-content: start;
+}
+.point .text { padding-top: 6px; }
+.point h2 {
+    font-family: 'Fraunces', serif; font-weight: 700; font-size: 58px; line-height: 1.18;
+    margin: 0 0 30px; letter-spacing: -.01em;
+}
+.point .rule { width: 88px; height: 3px; background: var(--rust); margin: 0 0 32px; }
+.point .summary { font-size: 25px; line-height: 1.72; color: var(--ink); margin: 0 0 30px; }
+.point .summary b { font-weight: 600; color: var(--rust-deep); }
+.point .quote {
+    font-family: 'Fraunces', serif; font-style: italic; font-weight: 500; font-size: 23px;
+    line-height: 1.55; color: var(--muted); border-left: 3px solid var(--warm); padding-left: 22px; margin: 0;
+}
+.point .quote::before { content: '证据 · '; font-style: normal; color: var(--rust); font-weight: 700; font-family: 'Work Sans', sans-serif; font-size: 15px; letter-spacing: .08em; }
+
+/* 照片卡片(编辑部剪贴风) */
+.framecard {
+    position: relative; align-self: center; background: #fff; padding: 18px 18px 54px;
+    box-shadow: 0 18px 46px rgba(26,26,26,.22); border: 1px solid var(--hair);
+}
+.framecard img { display: block; width: 100%; height: auto; }
+.framecard .cap {
+    position: absolute; left: 18px; bottom: 18px; font-family: 'Work Sans', sans-serif;
+    font-weight: 500; font-size: 15px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase;
+}
+.badge {
+    position: absolute; right: 18px; bottom: -22px; font-family: 'Work Sans', sans-serif; font-weight: 700;
+    font-size: 22px; letter-spacing: .04em; background: var(--slide-bg); color: var(--rust);
+    border: 2px solid var(--rust); text-decoration: none; padding: 10px 22px; z-index: 2;
+    transition: background .2s ease, color .2s ease;
+}
+.badge:hover { background: var(--rust); color: #fff; }
+.badge::after { content: ' ↗'; }
+
+/* === 封面 / 结尾 === */
+.cover { padding: 118px 130px; box-sizing: border-box; height: 100%; display: flex; flex-direction: column; position: relative; }
+.cover .kicker {
+    font-family: 'Work Sans', sans-serif; font-weight: 600; font-size: 22px;
+    letter-spacing: .22em; color: var(--rust); text-transform: uppercase;
+}
+.cover h1 {
+    font-family: 'Fraunces', serif; font-weight: 900; font-size: 108px; line-height: 1.08;
+    margin: 44px 0 0; max-width: 1450px; letter-spacing: -.01em;
+}
+.cover .sub { font-family: 'Work Sans', sans-serif; font-size: 30px; line-height: 1.6; color: var(--muted); margin-top: 40px; max-width: 1180px; }
+.cover .metaline {
+    margin-top: auto; display: flex; gap: 56px; font-family: 'Work Sans', sans-serif; font-weight: 600; font-size: 22px; color: var(--ink);
+}
+.cover .metaline span b { color: var(--rust); margin-right: 10px; font-weight: 700; }
+.cover .geo-cluster { position: absolute; right: 130px; top: 130px; display: flex; align-items: center; gap: 22px; }
+.cover .geo-cluster .circle { width: 120px; height: 120px; border-radius: 50%; border: 3px solid var(--rust); box-sizing: border-box; }
+.cover .geo-cluster .line { width: 90px; height: 3px; background: var(--ink); opacity: .5; }
+.cover .geo-cluster .dot { width: 26px; height: 26px; border-radius: 50%; background: var(--warm); border: 3px solid var(--rust); box-sizing: border-box; }
+
+.closing .kicker { font-family: 'Work Sans', sans-serif; font-weight: 600; font-size: 22px; letter-spacing: .22em; color: var(--rust); text-transform: uppercase; }
+.closing h1 { font-family: 'Fraunces', serif; font-weight: 900; font-size: 92px; line-height: 1.15; margin: 44px 0 0; max-width: 1500px; }
+.closing .sub { font-family: 'Work Sans', sans-serif; font-size: 27px; line-height: 1.75; color: var(--muted); margin-top: 40px; max-width: 1350px; }
+
+/* 页码 chrome */
+.pageno {
+    position: absolute; right: 96px; top: 56px; font-family: 'Work Sans', sans-serif; font-weight: 600;
+    font-size: 18px; color: var(--muted); letter-spacing: .12em; z-index: 2;
+}
+
+.deck-controls {
+    font-family: 'Work Sans', sans-serif; font-weight: 600; font-size: 14px;
+    color: rgba(245,243,238,.9); background: rgba(26,22,20,.6); padding: 8px 18px;
+    border-radius: 20px; letter-spacing: .06em;
+}
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+<div class="deck-stage" id="stage">
+
+<!-- ============ 封面 ============ -->
+<section class="slide active">
+  <div class="cover">
+    <div class="geo-cluster"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+    <div class="kicker">视频导航索引 · The B1M 纪录片(黑纹白斑马 中文配音)</div>
+    <h1>不可能的<br>倾斜之作</h1>
+    <div class="sub">新加坡滨海湾金沙,是如何从一张"根本不可能建成"的草图,变成世界最大公共悬臂平台与最大屋顶无边泳池的——每页照片右下角的时间戳可点击跳回原片对应画面。</div>
+    <div class="metaline">
+      <span><b>来源</b>Bilibili · 12:17</span>
+      <span><b>结构</b>6 章 · 15 要点</span>
+      <span><b>形态</b>cinematic 纪录片</span>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ 1.1 假想的不可能结构 ============ -->
+<section class="slide">
+  <div class="pageno">01 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">1.1</span>引言:滨海湾金沙的大胆构想</p>
+      <h2>两座塔楼<br>互相倚靠会怎样？</h2>
+      <div class="rule"></div>
+      <p class="summary">如果给一栋200米高楼加一栋一样高的塔楼,让它们向内倾斜互相倚靠,再横放一栋340米长的楼架在顶部保持平衡——这正是滨海湾金沙的真实结构。</p>
+      <p class="quote">而是像这样让它们向内倾斜</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_1.1_36.2.jpg" alt="假想的不可能结构">
+      <figcaption class="cap">FRAME · 00:36</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=36" target="_blank" rel="noopener">00:36</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 1.2 工程奇迹,但尚未完工 ============ -->
+<section class="slide">
+  <div class="pageno">02 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">1.2</span>引言:滨海湾金沙的大胆构想</p>
+      <h2>工程奇迹，<br>却仍未完工</h2>
+      <div class="rule"></div>
+      <p class="summary">滨海湾金沙已是新加坡的标志性象征,是稳稳站立的工程奇迹,但它带来的颠覆性影响尚未被充分认可,而且扩建仍未完成。</p>
+      <p class="quote">完全称得上是工程奇迹</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_1.2_46.6.jpg" alt="工程奇迹,但尚未完工">
+      <figcaption class="cap">FRAME · 00:47</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=47" target="_blank" rel="noopener">00:47</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 1.3 新加坡的雄心与金沙中标的洗牌塔楼构想 ============ -->
+<section class="slide">
+  <div class="pageno">03 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">1.3</span>引言:滨海湾金沙的大胆构想</p>
+      <h2>洗牌的扑克牌，<br>成了城市新愿景</h2>
+      <div class="rule"></div>
+      <p class="summary">21世纪初新加坡已是金融中心,但要与香港、迪拜、拉斯维加斯竞争还需要地标景点;政府提出滨海湾改造计划,2006年拉斯维加斯金沙集团中标,由建筑师摩西·萨夫迪设计出三栋塔楼呼应赌场洗牌扑克牌形态的方案。</p>
+      <p class="quote">正在洗牌的扑克牌的形态</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_1.3_69.5.jpg" alt="新加坡的雄心与金沙中标的洗牌塔楼构想">
+      <figcaption class="cap">FRAME · 01:09</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=69" target="_blank" rel="noopener">01:09</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 2.1 萨夫迪的挑战性设计风格 ============ -->
+<section class="slide">
+  <div class="pageno">04 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">2.1</span>塔楼工程挑战与施工</p>
+      <h2>萨夫迪偏爱<br>“不可能”的建筑</h2>
+      <div class="rule"></div>
+      <p class="summary">从设计之初,工程师们就在担心这个方案能否真正稳稳立住——萨夫迪向来偏爱那些看起来根本不可能建成的建筑,蒙特利尔栖息地67等过往作品延续了同样的结构逻辑。</p>
+      <p class="quote">那些看起来根本不可能建成的建筑对吧</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_2.1_191.4.jpg" alt="萨夫迪的挑战性设计风格">
+      <figcaption class="cap">FRAME · 03:11</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=191" target="_blank" rel="noopener">03:11</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 2.2 填海地基与5000根桩基工程 ============ -->
+<section class="slide">
+  <div class="pageno">05 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">2.2</span>塔楼工程挑战与施工</p>
+      <h2>填海地基上，<br>打进5000根桩</h2>
+      <div class="rule"></div>
+      <p class="summary">滨海湾金沙所在的地块是20世纪70至90年代填海造出的陆地,稳定性极差;为解决地基问题,工程师打入5000根最大埋深50米的桩基,把荷载传递到更坚实的岩土层。</p>
+      <p class="quote">工程师需要打入5000根桩机</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_2.2_218.3.jpg" alt="填海地基与5000根桩基工程">
+      <figcaption class="cap">FRAME · 03:38</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=218" target="_blank" rel="noopener">03:38</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 2.3 倾斜施工:毫米级精度与三塔封顶 ============ -->
+<section class="slide">
+  <div class="pageno">06 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">2.3</span>塔楼工程挑战与施工</p>
+      <h2>毫米级定位，<br>撑起26度倾角</h2>
+      <div class="rule"></div>
+      <p class="summary">三座塔楼向内最大倾斜26度,定位偏差会导致顶部空中花园无法对接,测量团队用激光与GPS将施工精度控制在毫米级;配合剪力墙与预应力平板结构,三座200米高的55层塔楼于2009年全部封顶。</p>
+      <p class="quote">将所有施工精度控制在毫米级误差范围内</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_2.3_262.0.jpg" alt="倾斜施工:毫米级精度与三塔封顶">
+      <figcaption class="cap">FRAME · 04:22</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=262" target="_blank" rel="noopener">04:22</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 3.1 空中花园:14阶段预制吊装 ============ -->
+<section class="slide">
+  <div class="pageno">07 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">3.1</span>空中花园建造工程</p>
+      <h2>340米空中花园，<br>分14段吊装到位</h2>
+      <div class="rule"></div>
+      <p class="summary">空中花园分14个阶段建造,每段重达数百吨,先异地预制、驳船运抵现场,再由钢绞线千斤顶吊装焊接就位——这是有史以来难度最高的吊装作业之一,施工须避开大风天气,误差控制在毫米级。</p>
+      <p class="quote">工程师们将它分成14个阶段</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_3.1_351.6.jpg" alt="空中花园:14阶段预制吊装">
+      <figcaption class="cap">FRAME · 05:52</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=352" target="_blank" rel="noopener">05:52</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 3.2 世界最大公共悬臂平台的钢框架 ============ -->
+<section class="slide">
+  <div class="pageno">08 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">3.2</span>空中花园建造工程</p>
+      <h2>世界最大的<br>公共悬臂平台</h2>
+      <div class="rule"></div>
+      <p class="summary">悬空于城市上空的悬臂段是整个结构中最大胆的部分,内部横架系统把重量分散传回塔楼;箱型梁、长钢横架与V型支撑将受力均匀分散,至今仍是世界上最大的公共悬臂平台。</p>
+      <p class="quote">它仍然是世界上最大的公共悬臂平台</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_3.2_427.8.jpg" alt="世界最大公共悬臂平台的钢框架">
+      <figcaption class="cap">FRAME · 07:08</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=428" target="_blank" rel="noopener">07:08</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 3.3 应对热胀冷缩与位移的柔性设计 ============ -->
+<section class="slide">
+  <div class="pageno">09 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">3.3</span>空中花园建造工程</p>
+      <h2>会“呼吸”的结构：<br>日位移20毫米</h2>
+      <div class="rule"></div>
+      <p class="summary">三座塔楼会因热胀冷缩及风荷载持续发生细微位移,空中花园每天最多可位移20毫米;为此塔楼之间设置伸缩缝,并靠这套柔性设计避免结构被拉裂。</p>
+      <p class="quote">空中花园每天最多可以位移20mm</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_3.3_483.9.jpg" alt="应对热胀冷缩与位移的柔性设计">
+      <figcaption class="cap">FRAME · 08:04</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=484" target="_blank" rel="noopener">08:04</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 4.1 世界最大无边泳池与隐藏水位平衡系统 ============ -->
+<section class="slide">
+  <div class="pageno">10 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">4.1</span>标志性无边泳池建造</p>
+      <h2>漂浮云端的<br>世界最大无边泳池</h2>
+      <div class="rule"></div>
+      <p class="summary">无边泳池长150米,是世界上最大的屋顶泳池;结构分三段分别对应下方塔楼,靠伸缩缝适应位移与沉降,隐藏的水箱和水泵持续平衡水位,打造出无缝衔接的视觉效果。</p>
+      <p class="quote">是世界上最大的屋顶泳池</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_4.1_518.7.jpg" alt="世界最大无边泳池与隐藏水位平衡系统">
+      <figcaption class="cap">FRAME · 08:39</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=519" target="_blank" rel="noopener">08:39</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 5.1 庞大的综合体量与协调挑战 ============ -->
+<section class="slide">
+  <div class="pageno">11 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">5.1</span>项目价值与城市影响</p>
+      <h2>84.5万平方米，<br>一座垂直城市</h2>
+      <div class="rule"></div>
+      <p class="summary">抛开建筑魔法不谈,滨海湾金沙其实是一个体量极其庞大的酒店项目:总建筑面积84.5万平方米,拥有2500间客房、全球最大的中庭赌场、商场、剧院与博物馆,协调这些功能本身就是巨大的设计挑战。</p>
+      <p class="quote">总建筑面积达84.5万平方米</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_5.1_570.8.jpg" alt="庞大的综合体量与协调挑战">
+      <figcaption class="cap">FRAME · 09:31</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=571" target="_blank" rel="noopener">09:31</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 5.2 金融危机中坚持建设,2010年开业 ============ -->
+<section class="slide">
+  <div class="pageno">12 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">5.2</span>项目价值与城市影响</p>
+      <h2>金融危机中，<br>赌上55亿美元</h2>
+      <div class="rule"></div>
+      <p class="summary">到2010年4月开业时,滨海湾金沙总造价已达55亿美元,是有史以来造价最高的独立赌场度假村之一;2008年全球金融危机中途爆发,外界一度怀疑工程能否建完,但新加坡与金沙集团坚持推进。</p>
+      <p class="quote">全球金融危机在施工中途爆发</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_5.2_618.2.jpg" alt="金融危机中坚持建设,2010年开业">
+      <figcaption class="cap">FRAME · 10:18</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=618" target="_blank" rel="noopener">10:18</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 5.3 商业成功与新加坡新地标 ============ -->
+<section class="slide">
+  <div class="pageno">13 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">5.3</span>项目价值与城市影响</p>
+      <h2>从疑虑到地标：<br>新加坡的新名片</h2>
+      <div class="rule"></div>
+      <p class="summary">事实证明这个决定是对的:短短几年内滨海湾金沙就成为全球盈利能力最强的赌场之一,会议中心承办全球性活动,空中花园也是亚洲游客到访量最高的景点之一,并为新加坡带来堪比埃菲尔铁塔的城市地标形象。</p>
+      <p class="quote">就成为全球盈利能力最强的赌场之一</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_5.3_632.2.jpg" alt="商业成功与新加坡新地标">
+      <figcaption class="cap">FRAME · 10:32</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=632" target="_blank" rel="noopener">10:32</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 6.1 倾斜45度的第四塔楼与新配套设施 ============ -->
+<section class="slide">
+  <div class="pageno">14 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">6.1</span>第四塔楼扩建规划</p>
+      <h2>第四座塔楼，<br>扭转45度而生</h2>
+      <div class="rule"></div>
+      <p class="summary">第四座塔楼共55层,楼体前倾并整体扭转45度,同样设有横跨两层的空中花园,还包含观景台、餐厅、屋顶花园、私人度假小屋等设施,塔楼下方是可容纳1.5万人、由拉斯维加斯Sphere团队设计的娱乐场馆。</p>
+      <p class="quote">整体扭转45度</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_6.1_684.9.jpg" alt="倾斜45度的第四塔楼与新配套设施">
+      <figcaption class="cap">FRAME · 11:25</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=685" target="_blank" rel="noopener">11:25</a>
+    </figure>
+  </div>
+</section>
+
+
+<!-- ============ 6.2 造价飙升与未来悬念 ============ -->
+<section class="slide">
+  <div class="pageno">15 / 15</div>
+  <div class="geo-mark"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+  <div class="point">
+    <div class="text">
+      <p class="eyebrow"><span class="idx">6.2</span>第四塔楼扩建规划</p>
+      <h2>33亿到80亿，<br>续写传奇代价</h2>
+      <div class="rule"></div>
+      <p class="summary">第四塔楼项目最初估算造价33亿美元,如今已攀升至约80亿美元,足见工程的复杂程度与雄心规模;这是萨夫迪对自己杰作的续写,能否成功,只有时间能给出答案。</p>
+      <p class="quote">如今已攀升至约80亿美元</p>
+    </div>
+    <figure class="framecard">
+      <img src="assets/final_6.2_699.6.jpg" alt="造价飙升与未来悬念">
+      <figcaption class="cap">FRAME · 11:40</figcaption>
+      <a class="badge" href="https://www.bilibili.com/video/BV1EM7t6pEcu?p=1&t=700" target="_blank" rel="noopener">11:40</a>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 结尾 ============ -->
+<section class="slide">
+  <div class="cover closing">
+    <div class="geo-cluster"><span class="circle"></span><span class="line"></span><span class="dot"></span></div>
+    <div class="kicker">一句话带走</div>
+    <h1>三座倾斜的塔楼,<br>撑起一座悬空的城市广场</h1>
+    <div class="sub">填海地基、5000根桩、毫米级吊装、会随温度"呼吸"的柔性结构——滨海湾金沙用十余年时间把"不可能"变成新加坡的地标;如今第四座塔楼正扭转45度续写同一个赌注。<br>原视频:https://www.bilibili.com/video/BV1EM7t6pEcu?p=1 · 上传者:黑纹白斑马</div>
+  </div>
+</section>
+
+</div>
+</div>
+<div class="deck-controls">← → 翻页 · 点击时间戳跳回原视频</div>
+
+<script>
+// === 舞台等比缩放(1920×1080 整体 scale,不重排)===
+const stage = document.getElementById('stage');
+function fit() {
+    const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    const x = (window.innerWidth - 1920 * s) / 2;
+    const y = (window.innerHeight - 1080 * s) / 2;
+    stage.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+}
+window.addEventListener('resize', fit);
+fit();
+
+// === 翻页 ===
+const slides = Array.from(document.querySelectorAll('.slide'));
+let cur = 0;
+function go(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((sl, j) => sl.classList.toggle('active', j === cur));
+}
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(cur + 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(cur - 1);
+    if (e.key === 'Home') go(0);
+    if (e.key === 'End') go(slides.length - 1);
+});
+document.addEventListener('click', (e) => {
+    if (e.target.closest('a')) return;          // 角标链接不翻页
+    go(cur + (e.clientX > window.innerWidth / 2 ? 1 : -1));
+});
+</script>
+</body>
+</html>
